@@ -4,10 +4,10 @@ import plotly.graph_objects as go
 # -------------------------------------------------------------
 # 1. 페이지 레이아웃 및 기본 설정
 # -------------------------------------------------------------
-st.set_page_config(page_title="AI 3D 복층(2층) 건축 평면도 & 가구 배치 시스템", page_icon="🏛️", layout="wide")
+st.set_page_config(page_title="AI 3D 복층(2층) 정밀 건축 평면도", page_icon="🏛️", layout="wide")
 
-st.title("🏛️ AI 기반 3D 정밀 주택 평면도 & 복층(2층) 확장 가구 배치 시스템")
-st.caption("최대 100m까지 대형 주택 확장이 가능하며, **2층(복층) 구조 온/오프 토글 스위치** 및 **연결 계단(Stairs)**을 완벽 시각화합니다.")
+st.title("🏛️ AI 기반 3D 정밀 주택 평면도 & 가구 배치 시스템")
+st.caption("최대 100m까지 자유롭게 넓힐 수 있으며, **모든 내벽, 방문, 욕실, 현관문, 2층 계단**이 완벽히 연결됩니다.")
 
 st.divider()
 
@@ -50,7 +50,7 @@ def create_stairs(x0, y0, z0, dx, dy, dz, num_steps=10, color="#8D6E63", name="�
 # 3. 메인 프로그램 (예외 처리 구조)
 # -------------------------------------------------------------
 try:
-    # [입력 1] 전체 집 구조 설정 (최대 100m 확장 지원)
+    # [입력 1] 전체 집 구조 설정 (최대 100m 제한 확장)
     st.subheader("1. 집 전체 치수 및 복층(2층) 옵션 설정")
     
     col_hw, col_hl, col_hh, col_toggle = st.columns([2, 2, 2, 3])
@@ -83,17 +83,23 @@ try:
     win_h_start = 0.9
     win_h = 1.2
 
-    # 1층 공간 구조
+    # 1층 공간 구조 정의
+    y_mid = house_l * 0.55
+    x_mid1 = house_w * 0.5
+    x_mid2 = house_w * 0.38
+    x_mid3 = house_w * 0.75
+    y_bath = house_l * 0.80
+
     rooms_1f = {
-        "[1층] 거실 (Living Room)": {"x0": 0, "y0": 0, "w": house_w * 0.5, "l": house_l * 0.55, "color": "#FAFAFA", "z": 0},
-        "[1층] 안방 (Master Bedroom)": {"x0": house_w * 0.5, "y0": 0, "w": house_w * 0.5, "l": house_l * 0.55, "color": "#F3E5F5", "z": 0},
-        "[1층] 작은방 (Bedroom 2)": {"x0": 0, "y0": house_l * 0.55, "w": house_w * 0.38, "l": house_l * 0.45, "color": "#E1F5FE", "z": 0},
-        "[1층] 주방/식당 (Kitchen)": {"x0": house_w * 0.38, "y0": house_l * 0.55, "w": house_w * 0.37, "l": house_l * 0.45, "color": "#FFF3E0", "z": 0},
-        "[1층] 욕실/화장실 (Bathroom)": {"x0": house_w * 0.75, "y0": house_l * 0.55, "w": house_w * 0.25, "l": house_l * 0.25, "color": "#E0F7FA", "z": 0},
-        "[1층] 현관 (Entrance)": {"x0": house_w * 0.75, "y0": house_l * 0.80, "w": house_w * 0.25, "l": house_l * 0.20, "color": "#E8EAF6", "z": 0}
+        "[1층] 거실 (Living Room)": {"x0": 0, "y0": 0, "w": x_mid1, "l": y_mid, "color": "#FAFAFA", "z": 0},
+        "[1층] 안방 (Master Bedroom)": {"x0": x_mid1, "y0": 0, "w": house_w - x_mid1, "l": y_mid, "color": "#F3E5F5", "z": 0},
+        "[1층] 작은방 (Bedroom 2)": {"x0": 0, "y0": y_mid, "w": x_mid2, "l": house_l - y_mid, "color": "#E1F5FE", "z": 0},
+        "[1층] 주방/식당 (Kitchen)": {"x0": x_mid2, "y0": y_mid, "w": x_mid3 - x_mid2, "l": house_l - y_mid, "color": "#FFF3E0", "z": 0},
+        "[1층] 욕실/화장실 (Bathroom)": {"x0": x_mid3, "y0": y_mid, "w": house_w - x_mid3, "l": y_bath - y_mid, "color": "#E0F7FA", "z": 0},
+        "[1층] 현관 (Entrance)": {"x0": x_mid3, "y0": y_bath, "w": house_w - x_mid3, "l": house_l - y_bath, "color": "#E8EAF6", "z": 0}
     }
 
-    # 2층 공간 구조 (2층 옵션 활성화 시 추가)
+    # 2층 공간 구조 정의
     rooms_2f = {}
     if use_2nd_floor:
         rooms_2f = {
@@ -107,13 +113,12 @@ try:
 
     st.divider()
 
-    # [입력 2] 커스텀 가구 & 복층 대응 초기 프리셋
+    # [입력 2] 커스텀 가구 및 기본 세팅
     st.subheader("2. 가구, 소품 및 수직 적치(Stacking) 등록")
-    st.caption("💡 2층 스위치를 켜면 **2층 전용 방(서재, 게스트룸, 취미실 등) 선택 및 가구 배치**가 활성화됩니다.")
+    st.caption("💡 기존 방 선택 시 `[1층]` 표기가 자동 보정되어 가구가 도면에 정상 배치됩니다.")
 
     if "custom_items" not in st.session_state:
         st.session_state.custom_items = [
-            # 1층 기본 가구
             {"name": "신발장/수납장", "room": "[1층] 현관 (Entrance)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 1.0, "l": 0.4, "h": 1.2, "color": "#795548"},
             {"name": "4인용 패브릭 소파", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 2.4, "l": 0.9, "h": 0.85, "color": "#5C6BC0"},
             {"name": "원목 소파 테이블", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 1.1, "l": 0.6, "h": 0.4, "color": "#8D6E63"},
@@ -122,10 +127,14 @@ try:
             {"name": "퀸 사이즈 침대", "room": "[1층] 안방 (Master Bedroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 1.6, "l": 2.1, "h": 0.55, "color": "#3949AB"},
             {"name": "4인용 아일랜드 식탁", "room": "[1층] 주방/식당 (Kitchen)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 1.4, "l": 0.8, "h": 0.75, "color": "#66BB6A"},
             {"name": "양변기 & 세면대 세트", "room": "[1층] 욕실/화장실 (Bathroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 1.0, "l": 0.6, "h": 0.8, "color": "#00BCD4"},
-            # 2층 기본 가구 (2층 활성화 시 시각화)
-            {"name": "2층 서재 대형 원목 책상", "room": "[2층] 메인 서재/작업실 (Study)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 1.8, "l": 0.8, "h": 0.75, "color": "#5D4037"},
-            {"name": "2층 게스트 침대", "room": "[2층] 게스트 룸 (Guest Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 1.2, "l": 2.0, "h": 0.5, "color": "#00796B"}
+            {"name": "유리 샤워부스/욕조", "room": "[1층] 욕실/화장실 (Bathroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 1.0, "l": 0.9, "h": 1.9, "color": "#4DD0E1"},
+            {"name": "2층 서재 대형 원목 책상", "room": "[2층] 메인 서재/작업실 (Study)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 1.8, "l": 0.8, "h": 0.75, "color": "#5D4037"}
         ]
+
+    # 세션 상태 방 이름 자동 보정 (Migration)
+    for item in st.session_state.custom_items:
+        if not (item["room"].startswith("[1층]") or item["room"].startswith("[2층]")):
+            item["room"] = f"[1층] {item['room']}"
 
     existing_furniture_names = ["바닥 (z=0)"] + [item["name"] for item in st.session_state.custom_items if item["type"] == "일반 가구"]
 
@@ -187,8 +196,8 @@ try:
     st.divider()
 
     # [출력 2] 3D 정밀 건축 평면도 시각화
-    st.subheader("🏗️ 4. 정밀 3D 건축 평면도 (복층, 연결 계단, 문/창문, 가구 통합)")
-    st.caption("💡 **3D 도면 기호**: 🚪 **진한 갈색/철제(메인 현관문)** | 🧱 **회색 벽체** | 🪜 **갈색 계단(Stairs)** | 💧 **민트색(욕실)** | 🪟 **창문**")
+    st.subheader("🏗️ 4. 정밀 3D 건축 평면도 (모든 내벽, 방문, 욕실, 현관문, 계단 통합)")
+    st.caption("💡 **3D 도면 기호**: 🚪 **진한 갈색/철제(메인 현관문)** | 🧱 **회색 내/외벽** | 🪜 **연결 계단** | 💧 **민트색(욕실)** | 🪟 **창문**")
 
     fig = go.Figure()
 
@@ -207,9 +216,11 @@ try:
         ))
 
     # -------------------------------------------------------------
-    # 2) 1층 외벽, 내벽, 문, 창문 구축
+    # 2) 1층 외벽, 모든 내벽, 방문, 창문 완전 구축
     # -------------------------------------------------------------
     ent_info = rooms_1f["[1층] 현관 (Entrance)"]
+    
+    # 2-A: 외벽 (Outer Walls) & 메인 현관문
     fig.add_trace(create_3d_box(ent_info["x0"], house_l - wall_th, 0, ent_info["w"]*0.2, wall_th, house_h*0.85, "#424242", "외벽"))
     fig.add_trace(create_3d_box(ent_info["x0"] + ent_info["w"]*0.2, house_l - wall_th, 0, 1.0, wall_th, house_h*0.85, "#3E2723", "🚪 메인 현관문 (Front Door)", opacity=0.98))
     fig.add_trace(go.Scatter3d(
@@ -218,7 +229,6 @@ try:
     ))
     fig.add_trace(create_3d_box(ent_info["x0"] + ent_info["w"]*0.2 + 1.0, house_l - wall_th, 0, ent_info["w"] - (ent_info["w"]*0.2 + 1.0), wall_th, house_h*0.85, "#424242", "외벽"))
 
-    # 1층 외벽
     fig.add_trace(create_3d_box(0, 0, 0, rooms_1f["[1층] 거실 (Living Room)"]["w"]*0.3, wall_th, house_h*0.85, "#616161", "외벽"))
     fig.add_trace(create_3d_box(rooms_1f["[1층] 거실 (Living Room)"]["w"]*0.3, 0, win_h_start, rooms_1f["[1층] 거실 (Living Room)"]["w"]*0.4, wall_th, win_h, "#81D4FA", "1층 거실 창문", opacity=0.5))
     fig.add_trace(create_3d_box(rooms_1f["[1층] 거실 (Living Room)"]["w"]*0.7, 0, 0, house_w - rooms_1f["[1층] 거실 (Living Room)"]["w"]*0.7, wall_th, house_h*0.85, "#616161", "외벽"))
@@ -226,29 +236,52 @@ try:
     fig.add_trace(create_3d_box(house_w - wall_th, 0, 0, wall_th, house_l, house_h*0.85, "#616161", "외벽"))
     fig.add_trace(create_3d_box(0, house_l - wall_th, 0, ent_info["x0"], wall_th, house_h*0.85, "#616161", "후면 외벽"))
 
-    # 1층 내벽
-    mid_y = rooms_1f["[1층] 거실 (Living Room)"]["l"]
-    mid_x1 = rooms_1f["[1층] 거실 (Living Room)"]["w"]
-    fig.add_trace(create_3d_box(mid_x1 - wall_th/2, 0, 0, wall_th, mid_y * 0.3, house_h*0.85, "#9E9E9E", "내벽"))
-    fig.add_trace(create_3d_box(mid_x1 - wall_th/2, mid_y * 0.3, 0, wall_th, door_w, house_h*0.75, "#8D6E63", "안방문 (Door)", opacity=0.95))
-    fig.add_trace(create_3d_box(mid_x1 - wall_th/2, mid_y * 0.3 + door_w, 0, wall_th, mid_y - (mid_y * 0.3 + door_w), house_h*0.85, "#9E9E9E", "내벽"))
+    # 2-B: 1층 내부 벽체 완전 정밀 구축 (내벽 누락 보완)
+    # 1) 거실 - 안방 내벽 & 안방문
+    fig.add_trace(create_3d_box(x_mid1 - wall_th/2, 0, 0, wall_th, y_mid * 0.3, house_h*0.85, "#9E9E9E", "내벽"))
+    fig.add_trace(create_3d_box(x_mid1 - wall_th/2, y_mid * 0.3, 0, wall_th, door_w, house_h*0.75, "#8D6E63", "안방문 (Door)", opacity=0.95))
+    fig.add_trace(create_3d_box(x_mid1 - wall_th/2, y_mid * 0.3 + door_w, 0, wall_th, y_mid - (y_mid * 0.3 + door_w), house_h*0.85, "#9E9E9E", "내벽"))
 
-    # 욕실 벽체 및 방문
-    bath_info = rooms_1f["[1층] 욕실/화장실 (Bathroom)"]
-    fig.add_trace(create_3d_box(bath_info["x0"] - wall_th/2, bath_info["y0"], 0, wall_th, bath_info["l"]*0.2, house_h*0.85, "#9E9E9E", "욕실 벽체"))
-    fig.add_trace(create_3d_box(bath_info["x0"] - wall_th/2, bath_info["y0"] + bath_info["l"]*0.2, 0, wall_th, door_w, house_h*0.75, "#00ACC1", "🚿 욕실문", opacity=0.95))
-    fig.add_trace(create_3d_box(bath_info["x0"] - wall_th/2, bath_info["y0"] + bath_info["l"]*0.2 + door_w, 0, wall_th, bath_info["l"] - (bath_info["l"]*0.2 + door_w), house_h*0.85, "#9E9E9E", "욕실 벽체"))
+    # 2) 가로 중앙 내벽 (거실/안방 ↔ 작은방/주방/욕실/현관)
+    # 2-a) 거실 ↔ 작은방 내벽 & 작은방문
+    fig.add_trace(create_3d_box(0, y_mid - wall_th/2, 0, x_mid2 * 0.2, wall_th, house_h*0.85, "#9E9E9E", "내벽"))
+    fig.add_trace(create_3d_box(x_mid2 * 0.2, y_mid - wall_th/2, 0, door_w, wall_th, house_h*0.75, "#8D6E63", "작은방문 (Door)", opacity=0.95))
+    fig.add_trace(create_3d_box(x_mid2 * 0.2 + door_w, y_mid - wall_th/2, 0, x_mid2 - (x_mid2 * 0.2 + door_w), wall_th, house_h*0.85, "#9E9E9E", "내벽"))
+
+    # 2-b) 거실 ↔ 주방 분할 내벽 & 통로
+    pass_w = 1.2
+    p_wall_w = (x_mid3 - x_mid2 - pass_w) / 2
+    if p_wall_w > 0:
+        fig.add_trace(create_3d_box(x_mid2, y_mid - wall_th/2, 0, p_wall_w, wall_th, house_h*0.85, "#9E9E9E", "내벽"))
+        fig.add_trace(create_3d_box(x_mid2 + p_wall_w + pass_w, y_mid - wall_th/2, 0, p_wall_w, wall_th, house_h*0.85, "#9E9E9E", "내벽"))
+
+    # 2-c) 안방 ↔ 욕실/현관 내벽
+    fig.add_trace(create_3d_box(x_mid3, y_mid - wall_th/2, 0, house_w - x_mid3, wall_th, house_h*0.85, "#9E9E9E", "내벽"))
+
+    # 3) 작은방 ↔ 주방/식당 세로 내벽
+    fig.add_trace(create_3d_box(x_mid2 - wall_th/2, y_mid, 0, wall_th, house_l - y_mid, house_h*0.85, "#9E9E9E", "내벽"))
+
+    # 4) 주방 ↔ 욕실 세로 내벽 & 욕실문
+    b_wall_l = y_bath - y_mid
+    fig.add_trace(create_3d_box(x_mid3 - wall_th/2, y_mid, 0, wall_th, b_wall_l * 0.2, house_h*0.85, "#9E9E9E", "욕실 벽체"))
+    fig.add_trace(create_3d_box(x_mid3 - wall_th/2, y_mid + b_wall_l * 0.2, 0, wall_th, door_w, house_h*0.75, "#00ACC1", "🚿 욕실문", opacity=0.95))
+    fig.add_trace(create_3d_box(x_mid3 - wall_th/2, y_mid + b_wall_l * 0.2 + door_w, 0, wall_th, b_wall_l - (b_wall_l * 0.2 + door_w), house_h*0.85, "#9E9E9E", "욕실 벽체"))
+
+    # 5) 주방 ↔ 현관 세로 내벽
+    fig.add_trace(create_3d_box(x_mid3 - wall_th/2, y_bath, 0, wall_th, house_l - y_bath, house_h*0.85, "#9E9E9E", "현관 내벽"))
+
+    # 6) 욕실 ↔ 현관 가로 내벽
+    fig.add_trace(create_3d_box(x_mid3, y_bath - wall_th/2, 0, house_w - x_mid3, wall_th, house_h*0.85, "#9E9E9E", "내벽"))
 
     # -------------------------------------------------------------
     # 3) 2층 옵션 활성화 시: 2층 외벽/내벽 & 연결 계단(Stairs) 구축
     # -------------------------------------------------------------
     if use_2nd_floor:
-        # A. 1층 ➔ 2층 연결 계단 (Stairs)
         stair_x = house_w * 0.35
         stair_y = house_l * 0.45
         stair_w = 1.2
         stair_l = 1.8
-        stair_traces = create_stairs(stair_x, stair_y, 0, stair_w, stair_l, house_h, num_steps=10, color="#8D6E63", name="🪜 1층-2층 연결 계단")
+        stair_traces = create_stairs(stair_x, stair_y, 0, stair_w, stair_l, house_h, num_steps=10, color="#8D6E63", name="🪜 연결 계단")
         for trace in stair_traces:
             fig.add_trace(trace)
         fig.add_trace(go.Scatter3d(
@@ -256,7 +289,6 @@ try:
             text=["<b>🪜 1층-2층 연결 계단</b>"], mode="text", showlegend=False, hoverinfo="text"
         ))
 
-        # B. 2층 외벽 및 창문 (z = house_h)
         z2 = house_h
         fig.add_trace(create_3d_box(0, 0, z2, house_w*0.3, wall_th, house_h*0.85, "#546E7A", "2층 외벽"))
         fig.add_trace(create_3d_box(house_w*0.3, 0, z2 + win_h_start, house_w*0.4, wall_th, win_h, "#81D4FA", "2층 전면 창문", opacity=0.5))
@@ -264,8 +296,6 @@ try:
         fig.add_trace(create_3d_box(0, 0, z2, wall_th, house_l, house_h*0.85, "#546E7A", "2층 외벽"))
         fig.add_trace(create_3d_box(house_w - wall_th, 0, z2, wall_th, house_l, house_h*0.85, "#546E7A", "2층 외벽"))
         fig.add_trace(create_3d_box(0, house_l - wall_th, z2, house_w, wall_th, house_h*0.85, "#546E7A", "2층 후면 외벽"))
-
-        # C. 2층 내벽
         fig.add_trace(create_3d_box(house_w*0.5 - wall_th/2, 0, z2, wall_th, house_l*0.55, house_h*0.85, "#B0BEC5", "2층 내벽"))
 
     # -------------------------------------------------------------
@@ -357,9 +387,9 @@ try:
     st.divider()
 
     # [출력 3] 종합 건축 분석
-    st.subheader("💡 5. 건축 공간 및 복층(2층) 확장 가이드")
-    st.write("• **치수 확장성**: 집 가로/세로 입력을 **최대 100m까지 제한 없이 자유롭게 지정**할 수 있습니다.")
-    st.write("• **복층 구조 스위치**: '🏢 2층(복층) 구조 활성화' 체크박스로 2층 공간, 바닥 플레이트, 외벽, 연결 계단(🪜)을 켜고 끌 수 있습니다.")
+    st.subheader("💡 5. 건축 공간 구조 안내")
+    st.write("• **내벽 완전 분할**: 각 방 및 공간(거실, 안방, 작은방, 주방, 욕실, 현관) 사이의 내벽과 방문(안방문, 작은방문, 욕실문)이 도면상에 완벽히 분리 구현되었습니다.")
+    st.write("• **가구 복원**: 세션 명칭을 보정하여 소파, 침대, 식탁, TV, 샤워부스 등이 도면 위에 정확한 3D 위치로 표시됩니다.")
 
 except ValueError:
     st.error("❌ 올바른 숫자를 입력해 주세요.")
