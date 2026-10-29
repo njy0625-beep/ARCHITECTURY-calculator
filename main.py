@@ -4,18 +4,18 @@ import plotly.graph_objects as go
 # -------------------------------------------------------------
 # 1. 페이지 레이아웃 및 기본 설정
 # -------------------------------------------------------------
-st.set_page_config(page_title="AI 3D 주거 공간 가구 배치 진단기", page_icon="🏠", layout="centered")
+st.set_page_config(page_title="AI 3D 전체 주택 공간 & 가구 수직 적치 진단기", page_icon="🏠", layout="wide")
 
-st.title("🏠 AI 기반 3D 주거 공간 배치 & 쾌적도 진단기")
-st.caption("국제 건축 표준 단위(m, m², m³)와 가로·세로·높이 3차원 치수를 바탕으로 **3D 가구 배치 도면** 및 **공간 쾌적도**를 실시간 진단합니다.")
+st.title("🏠 AI 기반 3D 전체 주택 & 가구 수직 적치(Stacking) 진단기")
+st.caption("방 및 집 전체 공간에서 **책상 위 모니터, 서랍장 위 액자/화분 등 가구 위에 다른 가구를 올리는 수직 적치**까지 3D로 완벽히 시각화합니다.")
 
 st.divider()
 
 # -------------------------------------------------------------
-# 2. 3D 입체 도형(Mesh3D) 생성 함수
+# 2. 3D 입체 도형 생성 함수
 # -------------------------------------------------------------
-def create_3d_box(x0, y0, z0, dx, dy, dz, color, name):
-    """Plotly 3D 렌더링을 위한 직육면체 가구 객체 생성"""
+def create_3d_box(x0, y0, z0, dx, dy, dz, color, name, opacity=0.85):
+    """Plotly 3D 직육면체 객체 생성"""
     x = [x0, x0+dx, x0+dx, x0, x0, x0+dx, x0+dx, x0]
     y = [y0, y0, y0+dy, y0+dy, y0, y0, y0+dy, y0+dy]
     z = [z0, z0, z0, z0, z0+dz, z0+dz, z0+dz, z0+dz]
@@ -24,227 +24,242 @@ def create_3d_box(x0, y0, z0, dx, dy, dz, color, name):
     j = [3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3]
     k = [0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6]
 
-    mesh = go.Mesh3d(
+    return go.Mesh3d(
         x=x, y=y, z=z,
         i=i, j=j, k=k,
         color=color,
-        opacity=0.85,
+        opacity=opacity,
         name=name,
         showscale=False,
         flatshading=True,
         hoverinfo="name"
     )
-    return mesh
 
 # -------------------------------------------------------------
-# 3. 메인 프로그램
+# 3. 메인 프로그램 (예외 처리 구조)
 # -------------------------------------------------------------
 try:
-    # [입력 1] 방 치수 입력 (가로, 세로, 천장 높이)
-    st.subheader("1. 방 공간 치수 입력 (단위: m)")
-    col_w, col_l, col_h = st.columns(3)
+    # [입력 1] 전체 집 구조 설정
+    st.subheader("1. 집 전체 치수 및 공간 설정")
+    col_hw, col_hl, col_hh = st.columns(3)
+    with col_hw:
+        house_w = st.number_input("집 전체 가로 (m):", min_value=3.0, max_value=30.0, value=8.0, step=0.5)
+    with col_hl:
+        house_l = st.number_input("집 전체 세로 (m):", min_value=3.0, max_value=30.0, value=6.0, step=0.5)
+    with col_hh:
+        house_h = st.number_input("천장 높이 (m):", min_value=1.5, max_value=5.0, value=2.4, step=0.1)
 
-    with col_w:
-        room_w = st.number_input("방 가로 길이 (m):", min_value=0.0, max_value=20.0, value=3.5, step=0.1)
-    with col_l:
-        room_l = st.number_input("방 세로 길이 (m):", min_value=0.0, max_value=20.0, value=3.0, step=0.1)
-    with col_h:
-        room_h = st.number_input("천장 높이 (m):", min_value=1.5, max_value=5.0, value=2.4, step=0.1)
-
-    # 예외 처리: 0 이하 치수 차단
-    if room_w <= 0 or room_l <= 0 or room_h <= 0:
-        st.warning("⚠️ 방의 가로, 세로, 천장 높이는 모두 0보다 큰 수치이어야 합니다.")
+    if house_w <= 0 or house_l <= 0 or house_h <= 0:
+        st.warning("⚠️ 치수는 모두 0보다 커야 합니다.")
         st.stop()
 
-    room_area = room_w * room_l
-    room_vol = room_w * room_l * room_h
-    st.info(f"📏 입력한 방 공간 정보: 바닥 면적 **{room_area:.2f} m²** | 전체 체적(부피) **{room_vol:.2f} m³**")
+    total_house_area = house_w * house_l
+    st.info(f"🏡 전체 집 면적: **{total_house_area:.2f} m²** | 천장 높이: **{house_h:.1f} m**")
 
-    st.divider()
-
-    # [입력 2] 가구 선택 및 세부 치수 입력 (가로, 세로, 높이)
-    st.subheader("2. 배치할 가구 선택 및 3D 치수 설정 (단위: m)")
-
-    DEFAULT_FURNITURE = {
-        "싱글 침대": {"w": 1.0, "l": 2.0, "h": 0.5, "color": "#4A90E2"},
-        "퀸 침대": {"w": 1.5, "l": 2.0, "h": 0.5, "color": "#357ABD"},
-        "1인용 책상": {"w": 1.2, "l": 0.7, "h": 0.75, "color": "#50E3C2"},
-        "옷장/장롱": {"w": 1.2, "l": 0.6, "h": 2.0, "color": "#F5A623"},
-        "2인용 소파": {"w": 1.5, "l": 0.8, "h": 0.8, "color": "#B8E986"},
-        "서랍장/협탁": {"w": 0.6, "l": 0.5, "h": 0.7, "color": "#BD10E0"}
+    # 주택 4분할 구획 정의
+    rooms_definition = {
+        "거실 (Living Room)": {"x0": 0, "y0": 0, "w": house_w*0.6, "l": house_l*0.5, "color": "#EAEAEA"},
+        "안방 (Master Bedroom)": {"x0": house_w*0.6, "y0": 0, "w": house_w*0.4, "l": house_l*0.5, "color": "#F3E5F5"},
+        "작은방 (Bedroom 2)": {"x0": 0, "y0": house_l*0.5, "w": house_w*0.5, "l": house_l*0.5, "color": "#E1F5FE"},
+        "주방/식당 (Kitchen)": {"x0": house_w*0.5, "y0": house_l*0.5, "w": house_w*0.5, "l": house_l*0.5, "color": "#FFF3E0"}
     }
 
-    selected_preset = st.multiselect(
-        "배치할 가구 항목을 선택하세요:",
-        options=list(DEFAULT_FURNITURE.keys()),
-        default=["싱글 침대", "1인용 책상", "옷장/장롱"]
-    )
+    st.divider()
 
-    total_furn_area = 0.0
-    total_furn_vol = 0.0
-    max_furn_h = 0.0
-    furniture_list = []
+    # [입력 2] 가구 및 수직 적치(가구 위 올리기) 등록
+    st.subheader("2. 커스텀 가구 & 가구 위 올리기(수직 적치) 설정")
+    st.caption("💡 가구/소품 등록 시 **'배치 위치'**에서 기존 가구(책상, TV장 등)를 선택하면 그 위에 자동으로 올려집니다!")
 
-    if selected_preset:
-        st.markdown("##### ✏️ 선택 가구별 3D 규격(가로x세로x높이) 및 수량 조정")
-        for idx, item in enumerate(selected_preset):
-            preset = DEFAULT_FURNITURE[item]
+    if "custom_items" not in st.session_state:
+        st.session_state.custom_items = [
+            {"name": "킹 침대", "room": "안방 (Master Bedroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 1.6, "l": 2.1, "h": 0.5, "color": "#357ABD"},
+            {"name": "1인용 책상", "room": "작은방 (Bedroom 2)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 1.2, "l": 0.7, "h": 0.75, "color": "#50E3C2"},
+            {"name": "데스크탑 모니터", "room": "작은방 (Bedroom 2)", "type": "일반 가구", "base_item": "1인용 책상", "w": 0.5, "l": 0.2, "h": 0.4, "color": "#212121"},
+            {"name": "거실 소파", "room": "거실 (Living Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 2.2, "l": 0.9, "h": 0.8, "color": "#4A90E2"},
+            {"name": "대형 TV장", "room": "거실 (Living Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "w": 1.8, "l": 0.4, "h": 0.5, "color": "#8D6E63"},
+            {"name": "65인치 TV", "room": "거실 (Living Room)", "type": "일반 가구", "base_item": "대형 TV장", "w": 1.4, "l": 0.15, "h": 0.8, "color": "#000000"},
+            {"name": "거실 페르시안 러그", "room": "거실 (Living Room)", "type": "러그/카페트 (바닥)", "base_item": "바닥 (z=0)", "w": 2.0, "l": 1.5, "h": 0.02, "color": "#FFAB91"},
+            {"name": "벽걸이 유화 액자", "room": "거실 (Living Room)", "type": "벽걸이 액자 (벽면)", "base_item": "바닥 (z=0)", "w": 1.2, "l": 0.1, "h": 0.8, "color": "#FFD54F"}
+        ]
 
-            f_col1, f_col2, f_col3, f_col4 = st.columns(4)
-            with f_col1:
-                fw = st.number_input(f"[{item}] 가로(m):", min_value=0.1, max_value=10.0, value=preset["w"], key=f"fw_{idx}")
-            with f_col2:
-                fl = st.number_input(f"[{item}] 세로(m):", min_value=0.1, max_value=10.0, value=preset["l"], key=f"fl_{idx}")
-            with f_col3:
-                fh = st.number_input(f"[{item}] 높이(m):", min_value=0.1, max_value=5.0, value=preset["h"], key=f"fh_{idx}")
-            with f_col4:
-                fq = st.number_input(f"[{item}] 수량:", min_value=1, max_value=5, value=1, key=f"fq_{idx}")
+    # 올려놓기 대상 가구 리스트 생성
+    existing_furniture_names = ["바닥 (z=0)"] + [item["name"] for item in st.session_state.custom_items if item["type"] == "일반 가구"]
 
-            total_furn_area += (fw * fl * fq)
-            total_furn_vol += (fw * fl * fh * fq)
-            if fh > max_furn_h:
-                max_furn_h = fh
+    with st.expander("➕ 새 가구/소품 등록 (가구 위 올려놓기 선택 기능)", expanded=True):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            new_name = st.text_input("아이템 이름:", value="탁상 조명")
+            new_room = st.selectbox("배치할 방 선택:", options=list(rooms_definition.keys()))
+        with c2:
+            new_type = st.selectbox("아이템 유형:", options=["일반 가구", "러그/카페트 (바닥)", "벽걸이 액자 (벽면)"])
+            new_base = st.selectbox("배치 위치 (가구 위 올려놓기):", options=existing_furniture_names)
+            new_color = st.color_picker("3D 색상 선택:", value="#FBC02D")
+        with c3:
+            st.markdown("**3D 규격 입력 (m)**")
+            nw = st.number_input("가로 (m):", min_value=0.05, max_value=10.0, value=0.3, step=0.05)
+            nl = st.number_input("세로 (m):", min_value=0.05, max_value=10.0, value=0.3, step=0.05)
+            nh = st.number_input("높이 (m):", min_value=0.01, max_value=5.0, value=0.4, step=0.05)
 
-            furniture_list.append({"name": item, "w": fw, "l": fl, "h": fh, "q": fq, "color": preset["color"]})
+        if st.button("➕ 이 항목 추가하기"):
+            st.session_state.custom_items.append({
+                "name": new_name, "room": new_room, "type": new_type, "base_item": new_base,
+                "w": nw, "l": nl, "h": nh, "color": new_color
+            })
+            st.success(f"'{new_name}' 항목이 [{new_base}] 위에 등록되었습니다!")
+            st.rerun()
 
-    # [예외 처리 1] 가구 높이가 방 천장 높이보다 높은 경우
-    for furn in furniture_list:
-        if furn["h"] > room_h:
-            st.error(f"❌ 오류: [{furn['name']}]의 높이({furn['h']}m)가 방 천장 높이({room_h}m)보다 높아 배치할 수 없습니다!")
-            st.stop()
+    st.markdown("##### 📋 현재 등록된 가구 및 올려놓기(적치) 현황")
+    if st.session_state.custom_items:
+        items_to_remove = []
+        for idx, item in enumerate(st.session_state.custom_items):
+            ic1, ic2, ic3, ic4 = st.columns([3, 3, 3, 1])
+            base_str = f" ➔ 위치: [{item['base_item']}] 위" if item['base_item'] != "바닥 (z=0)" else ""
+            ic1.write(f"**[{item['room'].split(' ')[0]}]** {item['name']}{base_str}")
+            ic2.write(f"유형: {item['type']}")
+            ic3.write(f"치수: {item['w']}m × {item['l']}m × H:{item['h']}m")
+            if ic4.button("삭제", key=f"del_{idx}"):
+                items_to_remove.append(idx)
 
-    # [예외 처리 2] 가구 면적 초과
-    if total_furn_area >= room_area:
-        st.error("❌ 오류: 배치할 가구의 총 면적이 방 바닥 면적 이상입니다. 방 크기를 늘리거나 가구를 줄여주세요.")
-        st.stop()
-
-    occupancy_ratio = (total_furn_area / room_area) * 100
-    ceiling_clearance = room_h - max_furn_h
+        for idx in sorted(items_to_remove, reverse=True):
+            st.session_state.custom_items.pop(idx)
+            st.rerun()
 
     st.divider()
 
-    # [출력 1] 공간 및 높이 분석 결과
-    st.subheader("📊 3. 공간 및 높이(Height) 종합 진단 결과")
+    # [출력 1] 종합 진단
+    st.subheader("📊 3. 주택 전체 및 가구 배치 진단")
+    total_furniture_area = sum(item["w"] * item["l"] for item in st.session_state.custom_items if item["type"] == "일반 가구" and item["base_item"] == "바닥 (z=0)")
+    occupancy_ratio = (total_furniture_area / total_house_area) * 100
 
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("방 바닥 면적", f"{room_area:.2f} m²")
-    m2.metric("방 전체 부피(체적)", f"{room_vol:.2f} m³")
-    m3.metric("가구 점유 비율", f"{occupancy_ratio:.1f} %")
-    m4.metric("천장 여유 높이", f"{ceiling_clearance:.2f} m")
-
-    st.markdown("### 🏠 쾌적도 등급 평가")
-    if occupancy_ratio <= 30:
-        st.success("🟢 **[1등급 - 매우 쾌적]** 이동 동선 및 상부 개방감이 매우 훌륭합니다.")
-    elif occupancy_ratio <= 40:
-        st.info("🔵 **[2등급 - 적정 수준]** 국제 건축 표준 주거 배치 기준에 부합합니다. 이상적인 주거 환경입니다.")
-    elif occupancy_ratio <= 50:
-        st.warning("🟡 **[3등급 - 답답함]** 가구가 방의 절반가량을 차지합니다. 통로 및 천장 시야 확보가 필요합니다.")
-    else:
-        st.error("🔴 **[4등급 - 과밀/위험]** 이동 동선 침해 및 시각적 답답함이 심하므로 가구 수량을 줄이는 것을 권장합니다.")
+    m1, m2, m3 = st.columns(3)
+    m1.metric("전체 주택 면적", f"{total_house_area:.2f} m²")
+    m2.metric("바닥 점유 가구 면적", f"{total_furniture_area:.2f} m²")
+    m3.metric("바닥 공간 점유율", f"{occupancy_ratio:.1f} %")
 
     st.divider()
 
-    # -------------------------------------------------------------
-    # [출력 2] AI 기반 3D 입체 가구 배치 도면
-    # -------------------------------------------------------------
-    st.subheader("🧊 4. 입력값 기반 AI 3D 가구 배치 도면")
-    st.caption("💡 **가로 × 세로 × 높이** 치수가 3D 공간에 시각화됩니다. (마우스 드래그로 360도 회전 및 확대/축소 가능)")
+    # [출력 2] 3D 가구 위 가구 올리기 시각화
+    st.subheader("🧊 4. 3D 수직 적치(Stacking) 가구 배치 도면")
+    st.caption("💡 책상 위 모니터, TV장 위 TV처럼 가구 위에 올려진 소품이 높이($z$) 좌표 계산으로 3D 표시됩니다.")
 
     fig = go.Figure()
 
-    # 바닥면
-    fig.add_trace(go.Mesh3d(
-        x=[0, room_w, room_w, 0],
-        y=[0, 0, room_l, room_l],
-        z=[0, 0, 0, 0],
-        color="gainsboro",
-        opacity=0.5,
-        name="바닥"
-    ))
+    # 1) 전체 집 바닥
+    for room_name, rdata in rooms_definition.items():
+        rx0, ry0, rw, rl = rdata["x0"], rdata["y0"], rdata["w"], rdata["l"]
+        fig.add_trace(go.Mesh3d(
+            x=[rx0, rx0+rw, rx0+rw, rx0],
+            y=[ry0, ry0, ry0+rl, ry0+rl],
+            z=[0, 0, 0, 0],
+            color=rdata["color"], opacity=0.6, name=room_name
+        ))
+        fig.add_trace(go.Scatter3d(
+            x=[rx0 + rw/2], y=[ry0 + rl/2], z=[0.05],
+            text=[f"<b>{room_name}</b>"], mode="text", showlegend=False, hoverinfo="text"
+        ))
 
-    # 방 테두리 선
-    lines_x = [0, room_w, room_w, 0, 0, 0, room_w, room_w, 0, 0, room_w, room_w, room_w, room_w, 0, 0]
-    lines_y = [0, 0, room_l, room_l, 0, 0, 0, room_l, room_l, 0, 0, 0, room_l, room_l, room_l, room_l]
-    lines_z = [0, 0, 0, 0, 0, room_h, room_h, room_h, room_h, room_h, 0, room_h, room_h, 0, 0, room_h]
+    # 2) 집 외곽선
+    hw, hl, hh = house_w, house_l, house_h
+    outer_x = [0, hw, hw, 0, 0, 0, hw, hw, 0, 0, hw, hw, hw, hw, 0, 0]
+    outer_y = [0, 0, hl, hl, 0, 0, 0, hl, hl, 0, 0, 0, hl, hl, hl, hl]
+    outer_z = [0, 0, 0, 0, 0, hh, hh, hh, hh, hh, 0, hh, hh, 0, 0, hh]
 
     fig.add_trace(go.Scatter3d(
-        x=lines_x, y=lines_y, z=lines_z,
-        mode='lines',
-        line=dict(color='black', width=3),
-        showlegend=False,
-        hoverinfo='none'
+        x=outer_x, y=outer_y, z=outer_z,
+        mode='lines', line=dict(color='black', width=4), showlegend=False, hoverinfo='none'
     ))
 
-    # AI 생활 동선 및 높이 고려 배치 알고리즘
-    clearance = 0.2
+    fig.add_trace(go.Scatter3d(
+        x=[hw*0.6, hw*0.6, hw*0.6, hw*0.6], y=[0, hl*0.5, hl*0.5, 0], z=[0, 0, hh*0.8, hh*0.8],
+        mode='lines', line=dict(color='gray', width=2, dash='dash'), showlegend=False
+    ))
+    fig.add_trace(go.Scatter3d(
+        x=[0, hw], y=[hl*0.5, hl*0.5], z=[0, 0],
+        mode='lines', line=dict(color='gray', width=2, dash='dash'), showlegend=False
+    ))
 
-    def get_priority(item_name):
-        if "침대" in item_name: return 1
-        elif "옷장" in item_name: return 2
-        elif "책상" in item_name: return 3
-        else: return 4
+    # 3) 가구 적치 3D 좌표 계산 및 생성
+    placed_items_coords = {}
+    room_offsets = {rname: {"cx": rdata["x0"] + 0.3, "cy": rdata["y0"] + 0.3} for rname, rdata in rooms_definition.items()}
 
-    sorted_furniture = sorted(furniture_list, key=lambda x: get_priority(x["name"]))
+    floor_items = [item for item in st.session_state.custom_items if item["base_item"] == "바닥 (z=0)"]
+    stacked_items = [item for item in st.session_state.custom_items if item["base_item"] != "바닥 (z=0)"]
 
-    curr_x = clearance
-    curr_y = clearance
+    # 1단계: 바닥 가구 배치
+    for item in floor_items:
+        rname = item["room"]
+        itype = item["type"]
+        w, l, h = item["w"], item["l"], item["h"]
+        rinfo = rooms_definition[rname]
+        rx0, ry0, rw, rl = rinfo["x0"], rinfo["y0"], rinfo["w"], rinfo["l"]
 
-    for furn in sorted_furniture:
-        name = furn["name"]
-        w, l, h = furn["w"], furn["l"], furn["h"]
-        color = furn["color"]
-
-        for q_idx in range(furn["q"]):
-            if "침대" in name:
-                x0 = room_w - w - clearance
-                y0 = room_l - l - clearance
-            elif "옷장" in name:
-                x0 = clearance
-                y0 = room_l - l - clearance if (room_l - l - clearance > 0) else clearance
-            elif "책상" in name:
-                x0 = clearance
-                y0 = clearance
+        if itype == "러그/카페트 (바닥)":
+            x0 = rx0 + (rw - w) / 2
+            y0 = ry0 + (rl - l) / 2
+            z0 = 0.01
+            h_actual = 0.02
+        elif itype == "벽걸이 액자 (벽면)":
+            x0 = rx0 + 0.1
+            y0 = ry0 + rl - l - 0.05
+            z0 = 1.3
+            h_actual = h
+        else:
+            cx = room_offsets[rname]["cx"]
+            cy = room_offsets[rname]["cy"]
+            if cx + w <= rx0 + rw - 0.2 and cy + l <= ry0 + rl - 0.2:
+                x0, y0 = cx, cy
+                room_offsets[rname]["cx"] += (w + 0.2)
             else:
-                if curr_x + w <= room_w - clearance:
-                    x0 = curr_x
-                    y0 = curr_y
-                    curr_x += (w + clearance)
-                else:
-                    curr_x = clearance
-                    curr_y += (l + clearance)
-                    x0 = curr_x
-                    y0 = curr_y
+                room_offsets[rname]["cx"] = rx0 + 0.3
+                room_offsets[rname]["cy"] += (l + 0.3)
+                x0 = room_offsets[rname]["cx"]
+                y0 = room_offsets[rname]["cy"]
+            z0 = 0
+            h_actual = h
 
-            x0 = max(0.1, min(x0, room_w - w - 0.1))
-            y0 = max(0.1, min(y0, room_l - l - 0.1))
+        x0 = max(rx0 + 0.05, min(x0, rx0 + rw - w - 0.05))
+        y0 = max(ry0 + 0.05, min(y0, ry0 + rl - l - 0.05))
 
-            # 3D 가구 박스 생성
-            box_mesh = create_3d_box(x0, y0, 0, w, l, h, color, f"{name} ({q_idx+1})")
+        placed_items_coords[item["name"]] = (x0, y0, z0, w, l, h_actual)
+
+        box_mesh = create_3d_box(x0, y0, z0, w, l, h_actual, item["color"], f"[{rname.split(' ')[0]}] {item['name']}")
+        fig.add_trace(box_mesh)
+        fig.add_trace(go.Scatter3d(
+            x=[x0 + w/2], y=[y0 + l/2], z=[z0 + h_actual + 0.15],
+            text=[f"<b>{item['name']}</b>"], mode="text", showlegend=False, hoverinfo="text"
+        ))
+
+    # 2단계: 가구 상단 올리기(Stacking) 처리
+    for item in stacked_items:
+        parent_name = item["base_item"]
+        if parent_name in placed_items_coords:
+            px0, py0, pz0, pw, pl, ph = placed_items_coords[parent_name]
+            w, l, h = item["w"], item["l"], item["h"]
+
+            # 부모 가구 중앙 상단에 올리기
+            x0 = px0 + (pw - w) / 2
+            y0 = py0 + (pl - l) / 2
+            z0 = pz0 + ph  # 부모 가구의 높이만큼 z축 상승
+
+            placed_items_coords[item["name"]] = (x0, y0, z0, w, l, h)
+
+            box_mesh = create_3d_box(x0, y0, z0, w, l, h, item["color"], f"[{parent_name} 위] {item['name']}")
             fig.add_trace(box_mesh)
-
-            # 가구 명칭 및 3D 치수(가로x세로x높이) 라벨 표기
             fig.add_trace(go.Scatter3d(
-                x=[x0 + w/2],
-                y=[y0 + l/2],
-                z=[h + 0.15],
-                text=[f"<b>{name}</b><br>({w}m × {l}m × H:{h}m)"],
-                mode="text",
-                showlegend=False,
-                hoverinfo="text"
+                x=[x0 + w/2], y=[y0 + l/2], z=[z0 + h + 0.15],
+                text=[f"<b>{item['name']}</b>"], mode="text", showlegend=False, hoverinfo="text"
             ))
 
     fig.update_layout(
         scene=dict(
-            xaxis=dict(title='가로 (m)', range=[-0.5, room_w + 0.5]),
-            yaxis=dict(title='세로 (m)', range=[-0.5, room_l + 0.5]),
-            zaxis=dict(title='높이 (m)', range=[0, room_h + 0.5]),
+            xaxis=dict(title='가로 (m)', range=[-0.5, house_w + 0.5]),
+            yaxis=dict(title='세로 (m)', range=[-0.5, house_l + 0.5]),
+            zaxis=dict(title='높이 (m)', range=[0, house_h + 0.5]),
             aspectmode='data',
-            camera=dict(
-                eye=dict(x=1.6, y=-1.6, z=1.2)
-            )
+            camera=dict(eye=dict(x=1.5, y=-1.5, z=1.3))
         ),
-        width=700,
-        height=600,
+        width=850,
+        height=650,
         margin=dict(l=10, r=10, t=30, b=10)
     )
 
@@ -252,20 +267,11 @@ try:
 
     st.divider()
 
-    # -------------------------------------------------------------
-    # [출력 3] 건축학 기준 높이 및 동선 가이드
-    # -------------------------------------------------------------
-    st.subheader("💡 5. 건축학 기준 높이(Height) 및 동선 솔루션")
-
-    st.markdown("##### 📌 1) 천장 높이 및 시각적 개방감 분석")
-    st.write(f"• **현재 천장 여유 높이**: 가장 높은 가구 대비 상부 여유 공간이 **{ceiling_clearance:.2f}m** 확보되어 있습니다.")
-    st.write("• **높은 가구(옷장 등) 배치 규칙**: 높이 1.8m 이상의 키 높은 가구는 방문 근처에 배치하면 입구에서 답답함을 유발하므로, 안쪽 구석 벽면에 붙여 시야 간섭을 줄였습니다.")
-
-    st.markdown("##### 📌 2) 건축 인체치수(Ergonomics) 동선 규칙")
-    st.write("• **최소 이동 통로 폭**: 주 이동 동선은 최소 **0.6m (60cm)**, 주요 교차 동선은 **0.9m** 이상 확보해야 편하게 이동할 수 있습니다.")
-    st.write("• **문 및 옷장 여유 공간**: 방문이나 옷장 문이 열리는 전면 공간은 최소 **0.8m** 이상 비워두어야 문이 부딪히지 않습니다.")
+    st.subheader("💡 5. 건축학 수직 공간(Stacking) 가이드")
+    st.write("• **수직 레이어링(Vertical Layering)**: 바닥 면적을 늘리지 않고 **가구 상부 공간($z$-axis)**을 활용하면 주거 실면적 쾌적도를 크게 높일 수 있습니다.")
+    st.write("• **하중 및 안정성**: 책상 위 모니터/노트북, TV장 위 TV 등 적치 시 상부 가구의 무게중심을 중앙에 배치하는 것이 조형적으로 안정적입니다.")
 
 except ValueError:
-    st.error("❌ 올바른 수치 형식의 숫자를 입력해 주세요.")
+    st.error("❌ 올바른 숫자를 입력해 주세요.")
 except Exception as e:
-    st.error(f"❌ 프로그램 실행 중 예기치 않은 오류가 발생했습니다: {e}")
+    st.error(f"❌ 오류 발생: {e}")
