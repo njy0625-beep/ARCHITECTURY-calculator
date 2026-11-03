@@ -10,23 +10,36 @@ import math
 st.set_page_config(page_title="AI 3D 복층 정밀 건축 & 스마트 공간 최적화", page_icon="🏛️", layout="wide")
 
 st.title("🏛️ AI 기반 3D 정밀 건축 평면도 & 스마트 공간 최적화 배치 시스템")
-st.caption("2D 평면도 내 직접 벽체/가구 드래그 조작 | R키+마우스 휠 360도 가구 회전 | 방/가구 이름 표시 토글 지원")
+st.caption("2D 평면도 내 직접 벽체/가구 드래그 조작 | 마우스 드래그 종료 시 3D 실시간 자동 반영 | R키+마우스 휠 360도 가구 회전")
 
 st.divider()
 
 # -------------------------------------------------------------
-# 2. 3D 메쉬 생성 및 360도 회전 헬퍼 함수 (타입 강제 변환 적용)
+# 2. 안전한 형변환 및 3D 메쉬 생성 헬퍼 함수
 # -------------------------------------------------------------
+def safe_float(val, default=0.0):
+    """단일 값 또는 리스트 형태의 query_params 안전 변환 헬퍼"""
+    if isinstance(val, (list, tuple)):
+        val = val[0] if len(val) > 0 else default
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return default
+
+def safe_int(val, default=0):
+    """단일 값 또는 리스트 형태의 query_params 안전 변환 헬퍼"""
+    if isinstance(val, (list, tuple)):
+        val = val[0] if len(val) > 0 else default
+    try:
+        return int(float(val))
+    except (TypeError, ValueError):
+        return default
+
 def create_3d_rotated_box(x0, y0, z0, dx, dy, dz, angle_deg=0, color="#888888", name="구조물", opacity=0.85):
     """Plotly 3D 직육면체 메쉬 생성 (Z축 중심 360도 회전)"""
-    # 문자열 타입 입력 시 TypeError 방지를 위해 float 강제 형변환
-    x0 = float(x0)
-    y0 = float(y0)
-    z0 = float(z0)
-    dx = float(dx)
-    dy = float(dy)
-    dz = float(dz)
-    angle_deg = float(angle_deg)
+    x0, y0, z0 = safe_float(x0), safe_float(y0), safe_float(z0)
+    dx, dy, dz = safe_float(dx), safe_float(dy), safe_float(dz)
+    angle_deg = safe_float(angle_deg)
 
     cx = x0 + dx / 2.0
     cy = y0 + dy / 2.0
@@ -60,29 +73,44 @@ def create_3d_rotated_box(x0, y0, z0, dx, dy, dz, angle_deg=0, color="#888888", 
         showscale=False, flatshading=True, hoverinfo="name"
     )
 
-def safe_float(val, default=0.0):
-    """단일 값 또는 리스트 형태의 query_params 안전 변환 헬퍼"""
-    if isinstance(val, (list, tuple)):
-        val = val[0] if len(val) > 0 else default
-    try:
-        return float(val)
-    except (TypeError, ValueError):
-        return default
-
-def safe_int(val, default=0):
-    """단일 값 또는 리스트 형태의 query_params 안전 변환 헬퍼"""
-    if isinstance(val, (list, tuple)):
-        val = val[0] if len(val) > 0 else default
-    try:
-        return int(float(val))
-    except (TypeError, ValueError):
-        return default
-
 try:
     # -------------------------------------------------------------
-    # URL 쿼리 파라미터를 통한 2D -> Streamlit (가구 & 벽위치) 동기화
+    # 2.5. URL 쿼리 파라미터를 통한 2D -> 3D 실시간 자동 일괄 동기화
     # -------------------------------------------------------------
     query_params = st.query_params
+    
+    # 통합 실시간 데이터 동기화
+    if "sync_all" in query_params:
+        try:
+            # 1) 벽체 위치 반영
+            if "walls" in query_params:
+                w_raw = query_params["walls"]
+                w_str = w_raw[0] if isinstance(w_raw, list) else w_raw
+                walls_data = json.loads(w_str)
+                st.session_state.y_mid = safe_float(walls_data.get("y_mid"), 4.4)
+                st.session_state.x_mid1 = safe_float(walls_data.get("x_mid1"), 5.0)
+                st.session_state.x_mid2 = safe_float(walls_data.get("x_mid2"), 3.8)
+                st.session_state.x_mid3 = safe_float(walls_data.get("x_mid3"), 7.5)
+                st.session_state.y_bath = safe_float(walls_data.get("y_bath"), 6.4)
+
+            # 2) 전체 가구 위치 및 회전각 반영
+            if "items" in query_params:
+                i_raw = query_params["items"]
+                i_str = i_raw[0] if isinstance(i_raw, list) else i_raw
+                items_data = json.loads(i_str)
+                if "custom_items" in st.session_state:
+                    for item_state in items_data:
+                        s_id = safe_int(item_state.get("id"), -1)
+                        if 0 <= s_id < len(st.session_state.custom_items):
+                            st.session_state.custom_items[s_id]["abs_x"] = safe_float(item_state.get("x"))
+                            st.session_state.custom_items[s_id]["abs_y"] = safe_float(item_state.get("y"))
+                            st.session_state.custom_items[s_id]["rot"] = safe_int(item_state.get("rot"))
+            
+            st.toast("⚡ 2D 평면도 조작 내용이 3D 모델에 실시간 반영되었습니다!", icon="✨")
+        except Exception as e:
+            pass
+
+    # 하위 호환 단일 동기화 처리
     if "sync_wall" in query_params:
         try:
             st.session_state.y_mid = safe_float(query_params.get("y_mid"), st.session_state.get("y_mid", 4.4))
@@ -90,7 +118,6 @@ try:
             st.session_state.x_mid2 = safe_float(query_params.get("x_mid2"), st.session_state.get("x_mid2", 3.8))
             st.session_state.x_mid3 = safe_float(query_params.get("x_mid3"), st.session_state.get("x_mid3", 7.5))
             st.session_state.y_bath = safe_float(query_params.get("y_bath"), st.session_state.get("y_bath", 6.4))
-            st.toast("🧱 내벽 경계 위치가 캔버스 상에서 직접 업데이트 되었습니다!", icon="📐")
         except Exception:
             pass
 
@@ -105,7 +132,6 @@ try:
                 st.session_state.custom_items[s_id]["abs_x"] = s_x
                 st.session_state.custom_items[s_id]["abs_y"] = s_y
                 st.session_state.custom_items[s_id]["rot"] = s_rot
-                st.toast(f"✅ '{st.session_state.custom_items[s_id]['name']}' 가구 위치/회전 반영 완료!", icon="🚚")
         except Exception:
             pass
 
@@ -210,7 +236,7 @@ try:
     # -------------------------------------------------------------
     # 5. 🎮 [배치도 캔버스 통합 메인 제어 화면]
     # -------------------------------------------------------------
-    st.subheader("🎮 2D 스마트 평면도 통합 편집기 (평면도 내 직접 벽체/가구 이동 & 360°회전)")
+    st.subheader("🎮 2D 스마트 평면도 통합 편집기 (드래그 시 3D 모델에 실시간 자동 반영)")
 
     ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([3, 2.5, 2.5])
     with ctrl_col1:
@@ -263,15 +289,14 @@ try:
                 💡 <b>조작법:</b> <b>벽체선</b> 마우스 드래그로 방 크기 개조 | <b>가구</b> 클릭 후 드래그 이동 | <b>'R'키+마우스 휠</b> 360도 미세 회전
             </div>
             <div>
-                <span class="badge">벽면 마우스 커서 감지</span>
+                <span class="badge" style="background-color:#d4edda; color:#155724; border: 1px solid #c3e6cb;">⚡ 마우스 놓을 때 3D 실시간 자동 반영</span>
             </div>
         </div>
         <canvas id="floorCanvas" width="900" height="650"></canvas>
         <div class="status-bar">
-            <span id="statusText">🎮 평면도 상의 내벽(빨간색/회색선)을 마우스로 잡고 끌거나 가구를 드래그하세요!</span>
+            <span id="statusText">🎮 평면도 상의 내벽/가구를 마우스로 이동하면 3D 모델에 바로 실시간 반영됩니다!</span>
             <div>
-                <button class="sync-btn" onclick="syncWallsToStreamlit()">🧱 벽 위치 3D 반영</button>
-                <button class="sync-btn" style="background-color:#198754;" onclick="syncItemToStreamlit()">🚚 선택가구 3D 반영</button>
+                <button class="sync-btn" style="background-color:#198754;" onclick="syncAllToStreamlit()">⚡ 3D 모델에 지금 실시간 반영</button>
             </div>
         </div>
     </div>
@@ -299,6 +324,7 @@ try:
         let dragOffsetX = 0;
         let dragOffsetY = 0;
         let isRPressed = false;
+        let rotTimer = null;
 
         function getRooms() {{
             return [
@@ -431,7 +457,7 @@ try:
                 activeWall = hoveredWall;
                 isDragging = true;
                 selectedItem = null;
-                statusText.innerHTML = "🧱 내벽선 잡음: <b>" + activeWall + "</b> - 마우스로 이동하여 방 크기를 조절하세요!";
+                statusText.innerHTML = "🧱 내벽선 조절 중: <b>" + activeWall + "</b>";
                 draw();
                 return;
             }}
@@ -451,7 +477,7 @@ try:
                     isDragging = true;
                     dragOffsetX = mx - ix;
                     dragOffsetY = my - iy;
-                    statusText.innerHTML = "🎯 선택된 가구: <b>" + item.name + "</b> (각도: " + (item.rot||0) + "°) - 드래그 이동 또는 'R'키+휠 회전!";
+                    statusText.innerHTML = "🎯 선택된 가구: <b>" + item.name + "</b> (각도: " + (item.rot||0) + "°)";
                     draw();
                     return;
                 }}
@@ -459,7 +485,7 @@ try:
 
             selectedItem = null;
             activeWall = null;
-            statusText.innerHTML = "🎮 평면도 상의 내벽(선)을 끌거나 가구를 마우스 커서로 선택하세요!";
+            statusText.innerHTML = "🎮 평면도 상의 내벽/가구를 마우스 커서로 잡고 이동하세요!";
             draw();
         }});
 
@@ -515,12 +541,10 @@ try:
 
         window.addEventListener('mouseup', () => {{
             if (isDragging) {{
-                if (activeWall) {{
-                    statusText.innerHTML = "🧱 벽 조절 완료! '🧱 벽 위치 3D 반영' 버튼을 누르세요.";
-                }} else if (selectedItem) {{
-                    statusText.innerHTML = "✅ 가구 이동 완료! '🚚 선택가구 3D 반영' 버튼을 누르세요.";
-                }}
                 isDragging = false;
+                statusText.innerHTML = "⚡ 3D 모델에 변경사항 실시간 자동 반영 중...";
+                // 마우스 드래그 종료 즉시 전체 벽/가구 위치 자동 동기화!
+                syncAllToStreamlit();
             }}
         }});
 
@@ -543,30 +567,37 @@ try:
                 selectedItem.rot = ((selectedItem.rot || 0) + rotStep + 360) % 360;
                 statusText.innerHTML = "🔄 가구 회전: <b>" + selectedItem.name + "</b> -> " + selectedItem.rot + "°";
                 draw();
+
+                clearTimeout(rotTimer);
+                rotTimer = setTimeout(() => {{
+                    syncAllToStreamlit();
+                }}, 300);
             }}
         }}, {{ passive: false }});
 
-        function syncWallsToStreamlit() {{
+        function syncAllToStreamlit() {{
             const url = new URL(window.parent.location.href);
-            url.searchParams.set('sync_wall', '1');
-            url.searchParams.set('y_mid', walls.y_mid.toFixed(2));
-            url.searchParams.set('x_mid1', walls.x_mid1.toFixed(2));
-            url.searchParams.set('x_mid2', walls.x_mid2.toFixed(2));
-            url.searchParams.set('x_mid3', walls.x_mid3.toFixed(2));
-            url.searchParams.set('y_bath', walls.y_bath.toFixed(2));
-            window.parent.location.href = url.toString();
-        }}
+            url.searchParams.set('sync_all', '1');
+            
+            // 벽 위치 최신화
+            const wData = {{
+                y_mid: parseFloat(walls.y_mid.toFixed(2)),
+                x_mid1: parseFloat(walls.x_mid1.toFixed(2)),
+                x_mid2: parseFloat(walls.x_mid2.toFixed(2)),
+                x_mid3: parseFloat(walls.x_mid3.toFixed(2)),
+                y_bath: parseFloat(walls.y_bath.toFixed(2))
+            }};
+            url.searchParams.set('walls', JSON.stringify(wData));
 
-        function syncItemToStreamlit() {{
-            if (!selectedItem) {{
-                alert("이동 또는 회전한 가구를 먼저 선택하세요!");
-                return;
-            }}
-            const url = new URL(window.parent.location.href);
-            url.searchParams.set('sync_id', selectedItem.id);
-            url.searchParams.set('sync_x', selectedItem.x.toFixed(2));
-            url.searchParams.set('sync_y', selectedItem.y.toFixed(2));
-            url.searchParams.set('sync_rot', selectedItem.rot || 0);
+            // 전체 가구 위치 및 회전 최신화
+            const itemStates = items.map(it => ({{
+                id: it.id,
+                x: parseFloat(it.x.toFixed(2)),
+                y: parseFloat(it.y.toFixed(2)),
+                rot: it.rot || 0
+            }}));
+            url.searchParams.set('items', JSON.stringify(itemStates));
+
             window.parent.location.href = url.toString();
         }}
 
