@@ -15,10 +15,19 @@ st.caption("2D 평면도 내 직접 벽체/가구 드래그 조작 | R키+마우
 st.divider()
 
 # -------------------------------------------------------------
-# 2. 3D 메쉬 생성 및 360도 회전 헬퍼 함수 (에러 방지 기본값 처리)
+# 2. 3D 메쉬 생성 및 360도 회전 헬퍼 함수 (타입 강제 변환 적용)
 # -------------------------------------------------------------
 def create_3d_rotated_box(x0, y0, z0, dx, dy, dz, angle_deg=0, color="#888888", name="구조물", opacity=0.85):
     """Plotly 3D 직육면체 메쉬 생성 (Z축 중심 360도 회전)"""
+    # 문자열 타입 입력 시 TypeError 방지를 위해 float 강제 형변환
+    x0 = float(x0)
+    y0 = float(y0)
+    z0 = float(z0)
+    dx = float(dx)
+    dy = float(dy)
+    dz = float(dz)
+    angle_deg = float(angle_deg)
+
     cx = x0 + dx / 2.0
     cy = y0 + dy / 2.0
     
@@ -51,6 +60,24 @@ def create_3d_rotated_box(x0, y0, z0, dx, dy, dz, angle_deg=0, color="#888888", 
         showscale=False, flatshading=True, hoverinfo="name"
     )
 
+def safe_float(val, default=0.0):
+    """단일 값 또는 리스트 형태의 query_params 안전 변환 헬퍼"""
+    if isinstance(val, (list, tuple)):
+        val = val[0] if len(val) > 0 else default
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return default
+
+def safe_int(val, default=0):
+    """단일 값 또는 리스트 형태의 query_params 안전 변환 헬퍼"""
+    if isinstance(val, (list, tuple)):
+        val = val[0] if len(val) > 0 else default
+    try:
+        return int(float(val))
+    except (TypeError, ValueError):
+        return default
+
 try:
     # -------------------------------------------------------------
     # URL 쿼리 파라미터를 통한 2D -> Streamlit (가구 & 벽위치) 동기화
@@ -58,21 +85,21 @@ try:
     query_params = st.query_params
     if "sync_wall" in query_params:
         try:
-            st.session_state.y_mid = float(query_params.get("y_mid", st.session_state.get("y_mid", 4.4)))
-            st.session_state.x_mid1 = float(query_params.get("x_mid1", st.session_state.get("x_mid1", 5.0)))
-            st.session_state.x_mid2 = float(query_params.get("x_mid2", st.session_state.get("x_mid2", 3.8)))
-            st.session_state.x_mid3 = float(query_params.get("x_mid3", st.session_state.get("x_mid3", 7.5)))
-            st.session_state.y_bath = float(query_params.get("y_bath", st.session_state.get("y_bath", 6.4)))
+            st.session_state.y_mid = safe_float(query_params.get("y_mid"), st.session_state.get("y_mid", 4.4))
+            st.session_state.x_mid1 = safe_float(query_params.get("x_mid1"), st.session_state.get("x_mid1", 5.0))
+            st.session_state.x_mid2 = safe_float(query_params.get("x_mid2"), st.session_state.get("x_mid2", 3.8))
+            st.session_state.x_mid3 = safe_float(query_params.get("x_mid3"), st.session_state.get("x_mid3", 7.5))
+            st.session_state.y_bath = safe_float(query_params.get("y_bath"), st.session_state.get("y_bath", 6.4))
             st.toast("🧱 내벽 경계 위치가 캔버스 상에서 직접 업데이트 되었습니다!", icon="📐")
         except Exception:
             pass
 
     if "sync_id" in query_params:
         try:
-            s_id = int(query_params["sync_id"])
-            s_x = float(query_params.get("sync_x", 0))
-            s_y = float(query_params.get("sync_y", 0))
-            s_rot = int(query_params.get("sync_rot", 0))
+            s_id = safe_int(query_params.get("sync_id"), -1)
+            s_x = safe_float(query_params.get("sync_x"), 0.0)
+            s_y = safe_float(query_params.get("sync_y"), 0.0)
+            s_rot = safe_int(query_params.get("sync_rot"), 0)
             
             if "custom_items" in st.session_state and 0 <= s_id < len(st.session_state.custom_items):
                 st.session_state.custom_items[s_id]["abs_x"] = s_x
@@ -114,11 +141,11 @@ try:
     if "y_bath" not in st.session_state:
         st.session_state.y_bath = house_l * 0.80
 
-    y_mid = st.session_state.y_mid
-    x_mid1 = st.session_state.x_mid1
-    x_mid2 = st.session_state.x_mid2
-    x_mid3 = st.session_state.x_mid3
-    y_bath = st.session_state.y_bath
+    y_mid = safe_float(st.session_state.y_mid, house_l * 0.55)
+    x_mid1 = safe_float(st.session_state.x_mid1, house_w * 0.5)
+    x_mid2 = safe_float(st.session_state.x_mid2, house_w * 0.38)
+    x_mid3 = safe_float(st.session_state.x_mid3, house_w * 0.75)
+    y_bath = safe_float(st.session_state.y_bath, house_l * 0.80)
 
     wall_th = 0.15
     door_w = 0.9
@@ -200,17 +227,17 @@ try:
     for idx, item in enumerate(st.session_state.custom_items):
         canvas_items_json.append({
             "id": idx, "name": item["name"], "room": item["room"],
-            "x": float(item.get("abs_x", 1.0)), "y": float(item.get("abs_y", 1.0)),
-            "w": item["w"], "l": item["l"], "color": item["color"],
-            "rot": item.get("rot", 0), "is_base": (item["base_item"] == "바닥 (z=0)")
+            "x": safe_float(item.get("abs_x", 1.0)), "y": safe_float(item.get("abs_y", 1.0)),
+            "w": safe_float(item["w"]), "l": safe_float(item["l"]), "color": item["color"],
+            "rot": safe_int(item.get("rot", 0)), "is_base": (item["base_item"] == "바닥 (z=0)")
         })
 
     wall_data_json = {
-        "y_mid": float(y_mid),
-        "x_mid1": float(x_mid1),
-        "x_mid2": float(x_mid2),
-        "x_mid3": float(x_mid3),
-        "y_bath": float(y_bath)
+        "y_mid": safe_float(y_mid),
+        "x_mid1": safe_float(x_mid1),
+        "x_mid2": safe_float(x_mid2),
+        "x_mid3": safe_float(x_mid3),
+        "y_bath": safe_float(y_bath)
     }
 
     drag_canvas_html = f"""
@@ -589,20 +616,12 @@ try:
     fig.add_trace(create_3d_rotated_box(x_mid1 - wall_th/2, y_mid * 0.3 + door_w, 0, wall_th, y_mid - (y_mid * 0.3 + door_w), house_h*0.85, 0, "#9E9E9E", "내벽"))
 
     fig.add_trace(create_3d_rotated_box(0, y_mid - wall_th/2, 0, x_mid2 * 0.2, wall_th, house_h*0.85, 0, "#9E9E9E", "내벽"))
-    fig.add_trace(create_3d_rotated_box(x_mid2 * 0.2 + door_w, y_mid - wall_th/2, 0, x_mid2 - (x_mid2 * 0.2 + door_w), house_h*0.85, 0, "#9E9E9E", "내벽"))
+    fig.add_trace(create_3d_rotated_box(x_mid2 * 0.2 + door_w, y_mid - wall_th/2, 0, x_mid2 - (x_mid2 * 0.2 + door_w), wall_th, house_h*0.85, 0, "#9E9E9E", "내벽"))
 
     fig.add_trace(create_3d_rotated_box(x_mid3, y_mid - wall_th/2, 0, house_w - x_mid3, wall_th, house_h*0.85, 0, "#9E9E9E", "내벽"))
     fig.add_trace(create_3d_rotated_box(x_mid2 - wall_th/2, y_mid, 0, wall_th, house_l - y_mid, house_h*0.85, 0, "#9E9E9E", "내벽"))
     fig.add_trace(create_3d_rotated_box(x_mid3 - wall_th/2, y_bath, 0, wall_th, house_l - y_bath, house_h*0.85, 0, "#9E9E9E", "현관 내벽"))
     fig.add_trace(create_3d_rotated_box(x_mid3, y_bath - wall_th/2, 0, house_w - x_mid3, wall_th, house_h*0.85, 0, "#9E9E9E", "현관 경계벽"))
-
-    # 사용자 정의 커스텀 추가 벽체
-    if "custom_walls" in st.session_state and st.session_state.custom_walls:
-        for wall_item in st.session_state.custom_walls:
-            w_dx = wall_item["w"] if wall_item["dir"] == "가로 방향 (E-W)" else wall_th
-            w_dy = wall_th if wall_item["dir"] == "가로 방향 (E-W)" else wall_item["w"]
-            w_color = "#2E7D32" if "파티션" in wall_item["type"] else ("#E65100" if "문" in wall_item["type"] else "#0288D1")
-            fig.add_trace(create_3d_rotated_box(wall_item["x"], wall_item["y"], wall_item["z"], w_dx, w_dy, wall_item["h"], 0, w_color, f"🛠️ 커스텀 {wall_item['type']}"))
 
     # 3) 가구 3D 배치 (동기화 반영)
     placed_coords = {}
@@ -613,12 +632,14 @@ try:
 
     for item in floor_items:
         rname = item["room"]
-        w, l, h = item["w"], item["l"], item["h"]
+        w = safe_float(item["w"])
+        l = safe_float(item["l"])
+        h = safe_float(item["h"])
 
-        x0 = float(item.get("abs_x", 1.0))
-        y0 = float(item.get("abs_y", 1.0))
+        x0 = safe_float(item.get("abs_x", 1.0))
+        y0 = safe_float(item.get("abs_y", 1.0))
         z0 = 0.0
-        rot_deg = int(item.get("rot", 0))
+        rot_deg = safe_int(item.get("rot", 0))
 
         placed_coords[item["name"]] = (x0, y0, z0, w, l, h, rot_deg)
         fig.add_trace(create_3d_rotated_box(x0, y0, z0, w, l, h, rot_deg, item["color"], f"[{rname.split(' ')[0]}] {item['name']} ({rot_deg}°)"))
@@ -627,7 +648,9 @@ try:
         parent_name = item["base_item"]
         if parent_name in placed_coords:
             px0, py0, pz0, pw, pl, ph, prot = placed_coords[parent_name]
-            w, l, h = item["w"], item["l"], item["h"]
+            w = safe_float(item["w"])
+            l = safe_float(item["l"])
+            h = safe_float(item["h"])
 
             x0 = px0 + 0.1
             y0 = py0 + 0.1
