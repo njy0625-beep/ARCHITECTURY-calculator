@@ -10,7 +10,7 @@ import math
 st.set_page_config(page_title="AI 3D 복층 정밀 건축 & 스마트 공간 최적화", page_icon="🏛️", layout="wide")
 
 st.title("🏛️ AI 기반 3D 정밀 건축 평면도 & 스마트 공간 최적화 배치 시스템")
-st.caption("AI 자동 가구 분산배치 (각 방별 벽면 밀착) | 캔버스 상 직접 벽체 조절/추가 | R키+마우스 휠 360도 가구 회전")
+st.caption("2D 평면도 내 직접 벽체/가구 드래그 조작 | R키+마우스 휠 360도 가구 회전 | 방/가구 이름 표시 토글 지원")
 
 st.divider()
 
@@ -52,8 +52,21 @@ def create_3d_rotated_box(x0, y0, z0, dx, dy, dz, angle_deg, color, name, opacit
     )
 
 try:
-    # URL 쿼리 파라미터를 통한 2D -> 3D 실시간 좌표 동기화 수신
+    # -------------------------------------------------------------
+    # URL 쿼리 파라미터를 통한 2D -> Streamlit (가구 & 벽위치) 동기화
+    # -------------------------------------------------------------
     query_params = st.query_params
+    if "sync_wall" in query_params:
+        try:
+            st.session_state.y_mid = float(query_params.get("y_mid", st.session_state.get("y_mid", 4.4)))
+            st.session_state.x_mid1 = float(query_params.get("x_mid1", st.session_state.get("x_mid1", 5.0)))
+            st.session_state.x_mid2 = float(query_params.get("x_mid2", st.session_state.get("x_mid2", 3.8)))
+            st.session_state.x_mid3 = float(query_params.get("x_mid3", st.session_state.get("x_mid3", 7.5)))
+            st.session_state.y_bath = float(query_params.get("y_bath", st.session_state.get("y_bath", 6.4)))
+            st.toast("🧱 내벽 경계 위치가 캔버스 상에서 직접 업데이트 되었습니다!", icon="📐")
+        except Exception:
+            pass
+
     if "sync_id" in query_params:
         try:
             s_id = int(query_params["sync_id"])
@@ -65,7 +78,7 @@ try:
                 st.session_state.custom_items[s_id]["abs_x"] = s_x
                 st.session_state.custom_items[s_id]["abs_y"] = s_y
                 st.session_state.custom_items[s_id]["rot"] = s_rot
-                st.toast(f"✅ '{st.session_state.custom_items[s_id]['name']}' 가구의 위치 및 회전이 반영되었습니다!", icon="🚚")
+                st.toast(f"✅ '{st.session_state.custom_items[s_id]['name']}' 가구 위치/회전 반영 완료!", icon="🚚")
         except Exception:
             pass
 
@@ -134,7 +147,6 @@ try:
     # 4. 🤖 AI 스마트 공간 자동 가구 분산 배치 함수
     # -------------------------------------------------------------
     def apply_ai_smart_layout():
-        """각 가구를 해당하는 방 영역 안의 벽면에 맞게 정확히 분산 자동 배치"""
         r_liv = rooms_1f["[1층] 거실 (Living Room)"]
         r_mas = rooms_1f["[1층] 안방 (Master Bedroom)"]
         r_bed2 = rooms_1f["[1층] 작은방 (Bedroom 2)"]
@@ -143,100 +155,49 @@ try:
         r_ent = rooms_1f["[1층] 현관 (Entrance)"]
 
         st.session_state.custom_items = [
-            # [거실] 소파 남측 벽, 테이블 중앙, TV장 북측 벽
             {"name": "4인용 패브릭 소파", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_liv["x0"] + 0.3, "abs_y": r_liv["y0"] + 0.2, "w": min(2.4, r_liv["w"]-0.6), "l": 0.9, "h": 0.85, "color": "#5C6BC0", "rot": 0},
             {"name": "원목 소파 테이블", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_liv["x0"] + 0.8, "abs_y": r_liv["y0"] + 1.4, "w": 1.1, "l": 0.6, "h": 0.4, "color": "#8D6E63", "rot": 0},
             {"name": "대형 거실 TV장", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_liv["x0"] + 0.5, "abs_y": r_liv["y0"] + r_liv["l"] - 0.55, "w": min(2.0, r_liv["w"]-0.8), "l": 0.4, "h": 0.5, "color": "#4E342E", "rot": 0},
             {"name": "75인치 스마트 TV", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "대형 거실 TV장", "abs_x": r_liv["x0"] + 0.7, "abs_y": r_liv["y0"] + r_liv["l"] - 0.5, "w": 1.6, "l": 0.15, "h": 0.9, "color": "#1A237E", "rot": 0},
 
-            # [안방] 침대 동측 벽 밀착, 붙박이장 북측 벽 밀착
             {"name": "퀸 사이즈 침대", "room": "[1층] 안방 (Master Bedroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_mas["x0"] + r_mas["w"] - 1.8, "abs_y": r_mas["y0"] + 0.3, "w": 1.6, "l": 2.1, "h": 0.55, "color": "#3949AB", "rot": 0},
             {"name": "원목 침대 협탁", "room": "[1층] 안방 (Master Bedroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_mas["x0"] + r_mas["w"] - 2.4, "abs_y": r_mas["y0"] + 0.3, "w": 0.5, "l": 0.4, "h": 0.5, "color": "#A1887F", "rot": 0},
             {"name": "안방 대형 붙박이장", "room": "[1층] 안방 (Master Bedroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_mas["x0"] + 0.3, "abs_y": r_mas["y0"] + r_mas["l"] - 0.7, "w": min(2.2, r_mas["w"]-0.6), "l": 0.65, "h": 2.1, "color": "#6D4C41", "rot": 0},
 
-            # [작은방] 서측 벽 침대, 동측 벽 책상
             {"name": "슈퍼싱글 침대", "room": "[1층] 작은방 (Bedroom 2)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_bed2["x0"] + 0.2, "abs_y": r_bed2["y0"] + 0.3, "w": 1.1, "l": 2.0, "h": 0.5, "color": "#0288D1", "rot": 0},
             {"name": "1인용 집중 스터디 책상", "room": "[1층] 작은방 (Bedroom 2)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_bed2["x0"] + r_bed2["w"] - 1.3, "abs_y": r_bed2["y0"] + 0.3, "w": 1.2, "l": 0.7, "h": 0.75, "color": "#26A69A", "rot": 0},
 
-            # [주방] 식탁 중앙, 냉장고 코너
             {"name": "4인용 아일랜드 식탁", "room": "[1층] 주방/식당 (Kitchen)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_kit["x0"] + 0.2, "abs_y": r_kit["y0"] + 0.8, "w": min(1.4, r_kit["w"]-0.4), "l": 0.8, "h": 0.75, "color": "#66BB6A", "rot": 0},
             {"name": "양문형 비스포크 냉장고", "room": "[1층] 주방/식당 (Kitchen)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_kit["x0"] + r_kit["w"] - 1.05, "abs_y": r_kit["y0"] + 0.2, "w": 0.95, "l": 0.9, "h": 1.85, "color": "#78909C", "rot": 0},
 
-            # [욕실] 세면대 및 샤워부스 벽 부착
             {"name": "양변기 & 세면대 세트", "room": "[1층] 욕실/화장실 (Bathroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_bath["x0"] + 0.15, "abs_y": r_bath["y0"] + 0.15, "w": min(0.9, r_bath["w"]-0.2), "l": 0.6, "h": 0.8, "color": "#00BCD4", "rot": 0},
             {"name": "유리 샤워부스/욕조", "room": "[1층] 욕실/화장실 (Bathroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_bath["x0"] + r_bath["w"] - 0.95, "abs_y": r_bath["y0"] + 0.15, "w": min(0.9, r_bath["w"]-0.2), "l": 0.9, "h": 1.9, "color": "#4DD0E1", "rot": 0},
 
-            # [현관] 신발장 및 슬라이딩 중문
             {"name": "🚪 현관 슬라이딩 중문", "room": "[1층] 현관 (Entrance)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_ent["x0"] + 0.1, "abs_y": r_ent["y0"] + 0.05, "w": min(1.2, r_ent["w"]-0.2), "l": 0.1, "h": 2.1, "color": "#3E2723", "rot": 0},
             {"name": "신발장 및 전신거울", "room": "[1층] 현관 (Entrance)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_ent["x0"] + r_ent["w"] - 0.45, "abs_y": r_ent["y0"] + 0.2, "w": 0.4, "l": min(1.0, r_ent["l"]-0.3), "h": 1.4, "color": "#795548", "rot": 0}
         ]
 
-    # 최초 초기화 또는 리셋 시 실행
     if "custom_items" not in st.session_state:
         apply_ai_smart_layout()
 
     # -------------------------------------------------------------
     # 5. 🎮 [배치도 캔버스 통합 메인 제어 화면]
     # -------------------------------------------------------------
-    st.subheader("🎮 2D 스마트 평면도 통합 편집기 (가구 이동/360°회전 & 벽체 자유 수정)")
-    
-    # 캔버스 바로 상단 컨트롤 패널
-    ctrl_col1, ctrl_col2 = st.columns([4, 6])
+    st.subheader("🎮 2D 스마트 평면도 통합 편집기 (평면도 내 직접 벽체/가구 이동 & 360°회전)")
+
+    # 상단 옵션 패널 (이름 표시 체크박스 & AI 최적화 버튼)
+    ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([3, 2.5, 2.5])
     with ctrl_col1:
         if st.button("✨ AI 기반 인간공학 자동 공간 최적화 재배치", use_container_width=True):
             apply_ai_smart_layout()
-            st.success("🤖 각 방별 동선과 치수에 맞춰 가구를 가장 쾌적하게 자동 분산 배치했습니다!")
+            st.success("🤖 각 방별 동선과 치수에 맞춰 가구를 자동 최적화 배치했습니다!")
             st.rerun()
+    with ctrl_col2:
+        show_room_names = st.checkbox("🏷️ 방 이름 표시", value=True)
+    with ctrl_col3:
+        show_item_names = st.checkbox("🏷️ 가구 이름 표시", value=True)
 
-    # 배치도 화면 자체에서 벽 설정/추가 수정을 바로 할 수 있는 확장기
-    with st.expander("🧱 배치도 상에서 내벽 경계선 이동 및 벽체/파티션/창문/문 직접 수정", expanded=True):
-        w_tab1, w_tab2 = st.tabs(["📐 내벽 경계 위치 수정", "🔨 커스텀 벽체/파티션/창문 추가"])
-        with w_tab1:
-            wc1, wc2, wc3 = st.columns(3)
-            with wc1:
-                st.session_state.y_mid = st.slider("가로 중앙 내벽 Y 위치 (m):", min_value=2.0, max_value=max(2.1, house_l - 2.0), value=float(y_mid), step=0.1)
-                st.session_state.x_mid1 = st.slider("거실/안방 경계 X 위치 (m):", min_value=1.0, max_value=max(1.1, house_w - 1.0), value=float(x_mid1), step=0.1)
-            with wc2:
-                st.session_state.x_mid2 = st.slider("작은방/주방 경계 X 위치 (m):", min_value=1.0, max_value=max(1.1, house_w - 1.0), value=float(x_mid2), step=0.1)
-                st.session_state.x_mid3 = st.slider("주방/욕실 경계 X 위치 (m):", min_value=1.0, max_value=max(1.1, house_w - 1.0), value=float(x_mid3), step=0.1)
-            with wc3:
-                st.session_state.y_bath = st.slider("욕실/현관 경계 Y 위치 (m):", min_value=min(y_mid + 0.5, house_l - 0.5), max_value=max(y_mid + 0.6, house_l - 0.2), value=float(y_bath), step=0.1)
-                if st.button("🔄 방 벽면 위치 변경 적용"):
-                    st.rerun()
-
-        with w_tab2:
-            cw1, cw2, cw3, cw4 = st.columns(4)
-            with cw1:
-                cw_type = st.selectbox("구조물 종류:", options=["내벽 파티션 (Wall)", "방문/출입문 (Door)", "창문 (Window)"])
-                cw_x = st.number_input("시작 X 좌표 (m):", min_value=0.0, max_value=house_w, value=2.0, step=0.2)
-            with cw2:
-                cw_y = st.number_input("시작 Y 좌표 (m):", min_value=0.0, max_value=house_l, value=2.0, step=0.2)
-                cw_w = st.number_input("길이/폭 (m):", min_value=0.2, max_value=10.0, value=2.0, step=0.1)
-            with cw3:
-                cw_dir = st.selectbox("배치 방향:", options=["가로 방향 (E-W)", "세로 방향 (N-S)"])
-                cw_h = st.number_input("높이 (m):", min_value=0.5, max_value=house_h, value=house_h * 0.85, step=0.1)
-            with cw4:
-                cw_z = st.number_input("바닥 Z 높이 (m):", min_value=0.0, max_value=5.0, value=0.0, step=0.1)
-                if st.button("➕ 배치도에 벽/창/문 즉시 추가"):
-                    if "custom_walls" not in st.session_state:
-                        st.session_state.custom_walls = []
-                    st.session_state.custom_walls.append({
-                        "type": cw_type, "x": cw_x, "y": cw_y, "w": cw_w,
-                        "dir": cw_dir, "h": cw_h, "z": cw_z
-                    })
-                    st.success("배치도에 새 구조물이 추가되었습니다!")
-                    st.rerun()
-
-            if "custom_walls" in st.session_state and st.session_state.custom_walls:
-                st.markdown("##### 🛠️ 현재 추가된 벽체 목록")
-                for idx, wall_item in enumerate(st.session_state.custom_walls):
-                    c_col1, c_col2 = st.columns([4, 1])
-                    c_col1.write(f"• **[{wall_item['type']}]** ({wall_item['x']}m, {wall_item['y']}m), {wall_item['dir']}, 길이: {wall_item['w']}m")
-                    if c_col2.button("삭제", key=f"del_wall_{idx}"):
-                        st.session_state.custom_walls.pop(idx)
-                        st.rerun()
-
-    # 가구 데이터 JSON 패킹
+    # 가구 데이터 JSON
     canvas_items_json = []
     for idx, item in enumerate(st.session_state.custom_items):
         canvas_items_json.append({
@@ -246,8 +207,14 @@ try:
             "rot": item.get("rot", 0), "is_base": (item["base_item"] == "바닥 (z=0)")
         })
 
-    # 커스텀 벽체 JSON
-    custom_walls_json = st.session_state.get("custom_walls", [])
+    # 벽 위치 구조 데이터 JSON
+    wall_data_json = {
+        "y_mid": float(y_mid),
+        "x_mid1": float(x_mid1),
+        "x_mid2": float(x_mid2),
+        "x_mid3": float(x_mid3),
+        "y_bath": float(y_bath)
+    }
 
     drag_canvas_html = f"""
     <!DOCTYPE html>
@@ -257,22 +224,31 @@ try:
     <style>
         body {{ font-family: 'Noto Sans KR', sans-serif; margin: 0; padding: 5px; background-color: #f8f9fa; }}
         #canvas-container {{ position: relative; width: 100%; text-align: center; }}
-        canvas {{ border: 3px solid #343a40; background: #ffffff; border-radius: 10px; cursor: move; box-shadow: 0 4px 15px rgba(0,0,0,0.15); }}
+        canvas {{ border: 3px solid #343a40; background: #ffffff; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); }}
         .status-bar {{ margin-top: 8px; padding: 10px; background: #212529; color: #f8f9fa; border-radius: 6px; font-weight: bold; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }}
-        .sync-btn {{ background-color: #0d6efd; color: white; border: none; padding: 8px 16px; border-radius: 5px; font-weight: bold; cursor: pointer; transition: 0.2s; }}
+        .sync-btn {{ background-color: #0d6efd; color: white; border: none; padding: 8px 16px; border-radius: 5px; font-weight: bold; cursor: pointer; transition: 0.2s; margin-left: 5px; }}
         .sync-btn:hover {{ background-color: #0b5ed7; }}
-        .guide-banner {{ background: #e7f5ff; border: 1px solid #a5d8ff; padding: 8px; border-radius: 6px; font-size: 13px; color: #1864ab; font-weight: bold; margin-bottom: 6px; }}
+        .guide-banner {{ background: #e7f5ff; border: 1px solid #a5d8ff; padding: 8px; border-radius: 6px; font-size: 13px; color: #1864ab; font-weight: bold; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }}
+        .badge {{ background-color: #d0ebff; color: #1864ab; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-left: 4px; }}
     </style>
     </head>
     <body>
     <div id="canvas-container">
         <div class="guide-banner">
-            💡 <b>조작법:</b> 가구 클릭 후 드래그하여 이동 | <b>가구 클릭 후 'R' 키를 누른 상태에서 마우스 휠을 굴리면 360도 미세 회전!</b> (더블클릭 시 90도 회전)
+            <div>
+                💡 <b>조작법:</b> <b>벽체선</b> 마우스 드래그로 방 크기 개조 | <b>가구</b> 클릭 후 드래그 이동 | <b>'R'키+마우스 휠</b> 360도 미세 회전
+            </div>
+            <div>
+                <span class="badge">벽면 마우스 커서 자동 감지</span>
+            </div>
         </div>
         <canvas id="floorCanvas" width="900" height="650"></canvas>
         <div class="status-bar">
-            <span id="statusText">🎮 가구를 마우스 커서로 클릭 후 원하는 위치로 드래그하세요!</span>
-            <button class="sync-btn" onclick="syncToStreamlit()">💾 3D 입체모형에 바로 적용</button>
+            <span id="statusText">🎮 평면도 상의 내벽(빨간색/회색선)을 마우스로 잡고 끌거나 가구를 드래그하세요!</span>
+            <div>
+                <button class="sync-btn" onclick="syncWallsToStreamlit()">🧱 벽 위치 3D 반영</button>
+                <button class="sync-btn" style="background-color:#198754;" onclick="syncItemToStreamlit()">🚚 선택가구 3D 반영</button>
+            </div>
         </div>
     </div>
     <script>
@@ -280,25 +256,44 @@ try:
         const ctx = canvas.getContext('2d');
         const statusText = document.getElementById('statusText');
 
+        const houseW = {house_w};
+        const houseL = {house_l};
+
+        const showRoomNames = {str(show_room_names).lower()};
+        const showItemNames = {str(show_item_names).lower()};
+
         const scale = 75; // 1m = 75px
         const originX = 60;
         const originY = 50;
 
-        const rooms = {json.dumps([{"name": k, "x": v["x0"], "y": v["y0"], "w": v["w"], "l": v["l"], "color": v["color"]} for k, v in rooms_1f.items()])};
-        const customWalls = {json.dumps(custom_walls_json)};
+        let walls = {json.dumps(wall_data_json)};
         let items = {json.dumps(canvas_items_json)};
 
         let selectedItem = null;
+        let activeWall = null; // 'y_mid', 'x_mid1', 'x_mid2', 'x_mid3', 'y_bath'
         let isDragging = false;
         let dragOffsetX = 0;
         let dragOffsetY = 0;
         let isRPressed = false;
 
+        function getRooms() {{
+            return [
+                {{ name: "거실", x: 0, y: 0, w: walls.x_mid1, l: walls.y_mid, color: "#FAFAFA" }},
+                {{ name: "안방", x: walls.x_mid1, y: 0, w: houseW - walls.x_mid1, l: walls.y_mid, color: "#F3E5F5" }},
+                {{ name: "작은방", x: 0, y: walls.y_mid, w: walls.x_mid2, l: houseL - walls.y_mid, color: "#E1F5FE" }},
+                {{ name: "주방/식당", x: walls.x_mid2, y: walls.y_mid, w: Math.max(0.1, walls.x_mid3 - walls.x_mid2), l: houseL - walls.y_mid, color: "#FFF3E0" }},
+                {{ name: "욕실/화장실", x: walls.x_mid3, y: walls.y_mid, w: houseW - walls.x_mid3, l: Math.max(0.1, walls.y_bath - walls.y_mid), color: "#E0F7FA" }},
+                {{ name: "현관", x: walls.x_mid3, y: walls.y_bath, w: houseW - walls.x_mid3, l: houseL - walls.y_bath, color: "#E8EAF6" }}
+            ];
+        }}
+
         function draw() {{
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1) 방 영역
-            rooms.forEach(r => {{
+            const roomsList = getRooms();
+
+            // 1) 방 바닥 영역
+            roomsList.forEach(r => {{
                 let rx = originX + r.x * scale;
                 let ry = originY + r.y * scale;
                 let rw = r.w * scale;
@@ -306,30 +301,30 @@ try:
 
                 ctx.fillStyle = r.color;
                 ctx.fillRect(rx, ry, rw, rl);
-                ctx.strokeStyle = "#495057";
-                ctx.lineWidth = 3;
+                ctx.strokeStyle = "#adb5bd";
+                ctx.lineWidth = 1;
                 ctx.strokeRect(rx, ry, rw, rl);
 
-                ctx.fillStyle = "#212529";
-                ctx.font = "bold 12px sans-serif";
-                ctx.fillText(r.name.split(' ')[1] || r.name, rx + 6, ry + 18);
+                if (showRoomNames) {{
+                    ctx.fillStyle = "#495057";
+                    ctx.font = "bold 13px sans-serif";
+                    ctx.fillText(r.name, rx + 8, ry + 20);
+                }}
             }});
 
-            // 2) 추가 설치 커스텀 벽체 표시
-            customWalls.forEach(w => {{
-                let wx = originX + w.x * scale;
-                let wy = originY + w.y * scale;
-                let ww = (w.dir === "가로 방향 (E-W)" ? w.w : 0.15) * scale;
-                let wl = (w.dir === "가로 방향 (E-W)" ? 0.15 : w.w) * scale;
+            // 2) 외벽 테두리
+            ctx.strokeStyle = "#212529";
+            ctx.lineWidth = 6;
+            ctx.strokeRect(originX, originY, houseW * scale, houseL * scale);
 
-                ctx.fillStyle = w.type.includes("파티션") ? "#2b8a3e" : (w.type.includes("문") ? "#d9480f" : "#1971c2");
-                ctx.fillRect(wx, wy, ww, wl);
-                ctx.strokeStyle = "#000";
-                ctx.lineWidth = 1;
-                ctx.strokeRect(wx, wy, ww, wl);
-            }});
+            // 3) 드래그 가능한 내벽 경계선
+            drawWallLine("y_mid", originX, originY + walls.y_mid * scale, originX + houseW * scale, originY + walls.y_mid * scale, "horizontal");
+            drawWallLine("x_mid1", originX + walls.x_mid1 * scale, originY, originX + walls.x_mid1 * scale, originY + walls.y_mid * scale, "vertical");
+            drawWallLine("x_mid2", originX + walls.x_mid2 * scale, originY + walls.y_mid * scale, originX + walls.x_mid2 * scale, originY + houseL * scale, "vertical");
+            drawWallLine("x_mid3", originX + walls.x_mid3 * scale, originY + walls.y_mid * scale, originX + walls.x_mid3 * scale, originY + houseL * scale, "vertical");
+            drawWallLine("y_bath", originX + walls.x_mid3 * scale, originY + walls.y_bath * scale, originX + houseW * scale, originY + walls.y_bath * scale, "horizontal");
 
-            // 3) 가구 렌더링
+            // 4) 가구 렌더링
             items.forEach(item => {{
                 if (!item.is_base) return;
                 
@@ -344,10 +339,10 @@ try:
 
                 if (item === selectedItem) {{
                     ctx.fillStyle = "rgba(255, 193, 7, 0.45)";
-                    ctx.fillRect(-iw/2 - 4, -il/2 - 4, iw + 8, il + 8);
+                    ctx.fillRect(-iw/2 - 5, -il/2 - 5, iw + 10, il + 10);
                     ctx.strokeStyle = "#d39e00";
                     ctx.lineWidth = 3;
-                    ctx.strokeRect(-iw/2 - 4, -il/2 - 4, iw + 8, il + 8);
+                    ctx.strokeRect(-iw/2 - 5, -il/2 - 5, iw + 10, il + 10);
                 }}
 
                 ctx.fillStyle = item.color;
@@ -356,23 +351,80 @@ try:
                 ctx.lineWidth = 1.5;
                 ctx.strokeRect(-iw/2, -il/2, iw, il);
 
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "bold 11px sans-serif";
-                ctx.shadowColor = "black";
-                ctx.shadowBlur = 3;
-                ctx.fillText(item.name.substring(0, 8), -iw/2 + 3, 4);
-                ctx.shadowBlur = 0;
+                if (showItemNames) {{
+                    ctx.fillStyle = "#ffffff";
+                    ctx.font = "bold 11px sans-serif";
+                    ctx.shadowColor = "black";
+                    ctx.shadowBlur = 3;
+                    ctx.fillText(item.name.substring(0, 8), -iw/2 + 3, 4);
+                    ctx.shadowBlur = 0;
+                }}
 
                 ctx.restore();
             }});
         }}
 
-        // 마우스 클릭 선택
+        function drawWallLine(wallKey, x1, y1, x2, y2, orientation) {{
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.lineWidth = (activeWall === wallKey) ? 7 : 5;
+            ctx.strokeStyle = (activeWall === wallKey) ? "#e63946" : "#495057";
+            ctx.stroke();
+
+            // 핸들 시각 표시
+            let midX = (x1 + x2) / 2;
+            let midY = (y1 + y2) / 2;
+            ctx.fillStyle = (activeWall === wallKey) ? "#e63946" : "#212529";
+            ctx.beginPath();
+            ctx.arc(midX, midY, 6, 0, Math.PI * 2);
+            ctx.fill();
+        }}
+
+        // 벽 근처 마우스 감지
+        function checkWallHover(mx, my) {{
+            const tolerance = 8;
+            
+            // y_mid (가로)
+            let y_mid_px = originY + walls.y_mid * scale;
+            if (Math.abs(my - y_mid_px) <= tolerance && mx >= originX && mx <= originX + houseW * scale) return 'y_mid';
+
+            // x_mid1 (세로 상단)
+            let x_mid1_px = originX + walls.x_mid1 * scale;
+            if (Math.abs(mx - x_mid1_px) <= tolerance && my >= originY && my <= originY + walls.y_mid * scale) return 'x_mid1';
+
+            // x_mid2 (세로 하단1)
+            let x_mid2_px = originX + walls.x_mid2 * scale;
+            if (Math.abs(mx - x_mid2_px) <= tolerance && my >= originY + walls.y_mid * scale && my <= originY + houseL * scale) return 'x_mid2';
+
+            // x_mid3 (세로 하단2)
+            let x_mid3_px = originX + walls.x_mid3 * scale;
+            if (Math.abs(mx - x_mid3_px) <= tolerance && my >= originY + walls.y_mid * scale && my <= originY + houseL * scale) return 'x_mid3';
+
+            // y_bath (가로 하단우측)
+            let y_bath_px = originY + walls.y_bath * scale;
+            if (Math.abs(my - y_bath_px) <= tolerance && mx >= originX + walls.x_mid3 * scale && mx <= originX + houseW * scale) return 'y_bath';
+
+            return null;
+        }}
+
         canvas.addEventListener('mousedown', (e) => {{
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
 
+            // 1. 벽선 선택 확인
+            let hoveredWall = checkWallHover(mx, my);
+            if (hoveredWall) {{
+                activeWall = hoveredWall;
+                isDragging = true;
+                selectedItem = null;
+                statusText.innerHTML = "🧱 내벽선 잡음: <b>" + activeWall + "</b> - 마우스로 이동하여 방 크기를 조절하세요!";
+                draw();
+                return;
+            }}
+
+            // 2. 가구 선택 확인
             for (let i = items.length - 1; i >= 0; i--) {{
                 let item = items[i];
                 if (!item.is_base) continue;
@@ -384,41 +436,83 @@ try:
 
                 if (mx >= ix && mx <= ix + iw && my >= iy && my <= iy + il) {{
                     selectedItem = item;
+                    activeWall = null;
                     isDragging = true;
                     dragOffsetX = mx - ix;
                     dragOffsetY = my - iy;
-                    statusText.innerHTML = "🎯 선택됨: <b>" + item.name + "</b> (각도: " + (item.rot||0) + "°) - 드래그 이동 또는 'R'키+휠로 회전!";
+                    statusText.innerHTML = "🎯 선택된 가구: <b>" + item.name + "</b> (각도: " + (item.rot||0) + "°) - 드래그 이동 또는 'R'키+휠 회전!";
                     draw();
                     return;
                 }}
             }}
+
             selectedItem = null;
-            statusText.innerHTML = "🎮 가구를 마우스 커서로 클릭 후 원하는 위치로 드래그하세요!";
+            activeWall = null;
+            statusText.innerHTML = "🎮 평면도 상의 내벽(선)을 끌거나 가구를 마우스 커서로 선택하세요!";
             draw();
         }});
 
-        // 드래그 이동
         canvas.addEventListener('mousemove', (e) => {{
-            if (!isDragging || !selectedItem) return;
-
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
 
-            let newX = (mx - dragOffsetX - originX) / scale;
-            let newY = (my - dragOffsetY - originY) / scale;
+            // 마우스 커서 스타일 업데이트
+            if (!isDragging) {{
+                let hoveredWall = checkWallHover(mx, my);
+                if (hoveredWall) {{
+                    canvas.style.cursor = hoveredWall.startsWith('y') ? 'ns-resize' : 'ew-resize';
+                }} else {{
+                    canvas.style.cursor = 'default';
+                }}
+            }}
 
-            selectedItem.x = Math.max(0, Math.min({house_w} - selectedItem.w, newX));
-            selectedItem.y = Math.max(0, Math.min({house_l} - selectedItem.l, newY));
+            if (!isDragging) return;
 
-            statusText.innerHTML = "🚚 이동 중: <b>" + selectedItem.name + "</b> [ X: " + selectedItem.x.toFixed(2) + "m, Y: " + selectedItem.y.toFixed(2) + "m ]";
-            draw();
+            // 벽 드래그 중
+            if (activeWall) {{
+                let mValX = (mx - originX) / scale;
+                let mValY = (my - originY) / scale;
+
+                if (activeWall === 'y_mid') {{
+                    walls.y_mid = Math.max(1.5, Math.min(houseL - 1.5, mValY));
+                }} else if (activeWall === 'x_mid1') {{
+                    walls.x_mid1 = Math.max(1.0, Math.min(houseW - 1.0, mValX));
+                }} else if (activeWall === 'x_mid2') {{
+                    walls.x_mid2 = Math.max(0.8, Math.min(walls.x_mid3 - 0.5, mValX));
+                }} else if (activeWall === 'x_mid3') {{
+                    walls.x_mid3 = Math.max(walls.x_mid2 + 0.5, Math.min(houseW - 0.8, mValX));
+                }} else if (activeWall === 'y_bath') {{
+                    walls.y_bath = Math.max(walls.y_mid + 0.5, Math.min(houseL - 0.5, mValY));
+                }}
+
+                statusText.innerHTML = "🧱 벽 조절 중: <b>" + activeWall + "</b> [ 위치: " + 
+                    (activeWall.startsWith('y') ? walls[activeWall].toFixed(2) + "m (Y)" : walls[activeWall].toFixed(2) + "m (X)") + " ]";
+                draw();
+                return;
+            }}
+
+            // 가구 드래그 중
+            if (selectedItem) {{
+                let newX = (mx - dragOffsetX - originX) / scale;
+                let newY = (my - dragOffsetY - originY) / scale;
+
+                selectedItem.x = Math.max(0, Math.min(houseW - selectedItem.w, newX));
+                selectedItem.y = Math.max(0, Math.min(houseL - selectedItem.l, newY));
+
+                statusText.innerHTML = "🚚 가구 이동 중: <b>" + selectedItem.name + "</b> [ X: " + selectedItem.x.toFixed(2) + "m, Y: " + selectedItem.y.toFixed(2) + "m ]";
+                draw();
+            }}
         }});
 
         window.addEventListener('mouseup', () => {{
-            if (isDragging && selectedItem) {{
+            if (isDragging) {{
+                if (activeWall) {{
+                    statusText.innerHTML = "🧱 벽 조절 완료! '🧱 벽 위치 3D 반영' 버튼을 눌러 3D 모형을 업데이트하세요.";
+                }} else if (selectedItem) {{
+                    statusText.innerHTML = "✅ 가구 이동 완료! '🚚 선택가구 3D 반영' 버튼을 누르세요.";
+                }}
                 isDragging = false;
-                statusText.innerHTML = "✅ 이동 완료: <b>" + selectedItem.name + "</b> [ X: " + selectedItem.x.toFixed(2) + "m, Y: " + selectedItem.y.toFixed(2) + "m ] -> 3D 적용 버튼 클릭!";
             }}
         }});
 
@@ -435,29 +529,31 @@ try:
             }}
         }});
 
-        // 🌟 R 키 누른 상태에서 마우스 휠로 360도 미세 회전 🌟
+        // R 키 + 마우스 휠 360도 미세 회전
         canvas.addEventListener('wheel', (e) => {{
             if (selectedItem && isRPressed) {{
-                e.preventDefault(); // 페이지 스크롤 방지
+                e.preventDefault();
                 let rotStep = e.deltaY < 0 ? 5 : -5;
                 selectedItem.rot = ((selectedItem.rot || 0) + rotStep + 360) % 360;
-                statusText.innerHTML = "🔄 휠 회전 완료: <b>" + selectedItem.name + "</b> -> " + selectedItem.rot + "°";
+                statusText.innerHTML = "🔄 가구 회전: <b>" + selectedItem.name + "</b> -> " + selectedItem.rot + "°";
                 draw();
             }}
         }}, {{ passive: false }});
 
-        // 더블클릭 90도 회전
-        canvas.addEventListener('dblclick', () => {{
-            if (selectedItem) {{
-                selectedItem.rot = ((selectedItem.rot || 0) + 90) % 360;
-                statusText.innerHTML = "🔄 회전 완료: <b>" + selectedItem.name + "</b> -> " + selectedItem.rot + "°";
-                draw();
-            }}
-        }});
+        function syncWallsToStreamlit() {{
+            const url = new URL(window.parent.location.href);
+            url.searchParams.set('sync_wall', '1');
+            url.searchParams.set('y_mid', walls.y_mid.toFixed(2));
+            url.searchParams.set('x_mid1', walls.x_mid1.toFixed(2));
+            url.searchParams.set('x_mid2', walls.x_mid2.toFixed(2));
+            url.searchParams.set('x_mid3', walls.x_mid3.toFixed(2));
+            url.searchParams.set('y_bath', walls.y_bath.toFixed(2));
+            window.parent.location.href = url.toString();
+        }}
 
-        function syncToStreamlit() {{
+        function syncItemToStreamlit() {{
             if (!selectedItem) {{
-                alert("이동 또는 회전한 가구를 클릭하여 선택한 후 적용 버튼을 누르세요!");
+                alert("이동 또는 회전한 가구를 먼저 선택하세요!");
                 return;
             }}
             const url = new URL(window.parent.location.href);
@@ -496,15 +592,13 @@ try:
             hoverinfo="name"
         ))
 
-    # 2) 1층 외벽 & 내벽 & 개조 벽체
+    # 2) 1층 외벽 & 내벽
     ent_info = rooms_1f["[1층] 현관 (Entrance)"]
 
-    # 외벽
     fig.add_trace(create_3d_rotated_box(0, 0, 0, house_w, wall_th, house_h*0.85, 0, "#616161", "남측 외벽"))
     fig.add_trace(create_3d_rotated_box(0, 0, 0, wall_th, house_l, house_h*0.85, 0, "#616161", "서측 외벽"))
     fig.add_trace(create_3d_rotated_box(house_w - wall_th, 0, 0, wall_th, house_l, house_h*0.85, 0, "#616161", "동측 외벽"))
 
-    # 후면 외벽 및 출입문
     fig.add_trace(create_3d_rotated_box(0, house_l - wall_th, 0, ent_info["x0"], wall_th, house_h*0.85, 0, "#616161", "북측 외벽"))
     fig.add_trace(create_3d_rotated_box(ent_info["x0"], house_l - wall_th, 0, ent_info["w"]*0.1, wall_th, house_h*0.85, 0, "#424242", "현관 외벽"))
     if show_front_door:
@@ -516,20 +610,12 @@ try:
     fig.add_trace(create_3d_rotated_box(x_mid1 - wall_th/2, y_mid * 0.3 + door_w, 0, wall_th, y_mid - (y_mid * 0.3 + door_w), house_h*0.85, 0, "#9E9E9E", "내벽"))
 
     fig.add_trace(create_3d_rotated_box(0, y_mid - wall_th/2, 0, x_mid2 * 0.2, wall_th, house_h*0.85, 0, "#9E9E9E", "내벽"))
-    fig.add_trace(create_3d_rotated_box(x_mid2 * 0.2 + door_w, y_mid - wall_th/2, 0, x_mid2 - (x_mid2 * 0.2 + door_w), wall_th, house_h*0.85, 0, "#9E9E9E", "내벽"))
+    fig.add_trace(create_3d_rotated_box(x_mid2 * 0.2 + door_w, y_mid - wall_th/2, 0, x_mid2 - (x_mid2 * 0.2 + door_w), house_h*0.85, 0, "#9E9E9E", "내벽"))
 
     fig.add_trace(create_3d_rotated_box(x_mid3, y_mid - wall_th/2, 0, house_w - x_mid3, wall_th, house_h*0.85, 0, "#9E9E9E", "내벽"))
     fig.add_trace(create_3d_rotated_box(x_mid2 - wall_th/2, y_mid, 0, wall_th, house_l - y_mid, house_h*0.85, 0, "#9E9E9E", "내벽"))
     fig.add_trace(create_3d_rotated_box(x_mid3 - wall_th/2, y_bath, 0, wall_th, house_l - y_bath, house_h*0.85, 0, "#9E9E9E", "현관 내벽"))
     fig.add_trace(create_3d_rotated_box(x_mid3, y_bath - wall_th/2, 0, house_w - x_mid3, wall_th, house_h*0.85, 0, "#9E9E9E", "현관 경계벽"))
-
-    # 사용자 정의 커스텀 추가 벽체
-    if "custom_walls" in st.session_state and st.session_state.custom_walls:
-        for wall_item in st.session_state.custom_walls:
-            w_dx = wall_item["w"] if wall_item["dir"] == "가로 방향 (E-W)" else wall_th
-            w_dy = wall_th if wall_item["dir"] == "가로 방향 (E-W)" else wall_item["w"]
-            w_color = "#2E7D32" if "파티션" in wall_item["type"] else ("#E65100" if "문" in wall_item["type"] else "#0288D1")
-            fig.add_trace(create_3d_rotated_box(wall_item["x"], wall_item["y"], wall_item["z"], w_dx, w_dy, wall_item["h"], 0, w_color, f"🛠️ 커스텀 {wall_item['type']}"))
 
     # 3) 가구 3D 배치 (동기화 반영)
     placed_coords = {}
