@@ -10,7 +10,7 @@ import math
 st.set_page_config(page_title="AI 3D 복층 정밀 건축 & 스마트 공간 최적화", page_icon="🏛️", layout="wide")
 
 st.title("🏛️ AI 기반 3D 정밀 건축 평면도 & 스마트 공간 최적화 배치 시스템")
-st.caption("AI 생활동선 자동 최적화 배치, 2D-3D 실시간 좌표 동기화, 마우스 커서 드래그/회전 & 벽체 자유 개조")
+st.caption("AI 자동 가구 분산배치 (각 방별 벽면 밀착) | 캔버스 상 직접 벽체 조절/추가 | R키+마우스 휠 360도 가구 회전")
 
 st.divider()
 
@@ -65,15 +65,13 @@ try:
                 st.session_state.custom_items[s_id]["abs_x"] = s_x
                 st.session_state.custom_items[s_id]["abs_y"] = s_y
                 st.session_state.custom_items[s_id]["rot"] = s_rot
-                st.toast(f"✅ '{st.session_state.custom_items[s_id]['name']}' 가구의 위치 및 회전이 3D 도면에 반영되었습니다!", icon="🚚")
+                st.toast(f"✅ '{st.session_state.custom_items[s_id]['name']}' 가구의 위치 및 회전이 반영되었습니다!", icon="🚚")
         except Exception:
             pass
 
     # -------------------------------------------------------------
-    # 3. 주택 전체 치수 & 내벽 위치 자유 조절
+    # 3. 건축 전체 치수 및 상단 기본 설정
     # -------------------------------------------------------------
-    st.subheader("1. 📐 건축 치수 및 내벽/방 구획 자유 개조")
-    
     c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
     with c1:
         house_w = st.number_input("가로 폭 (m):", min_value=5.0, max_value=100.0, value=10.0, step=0.5)
@@ -91,49 +89,23 @@ try:
 
     st.info(f"🏡 전체 주택 연면적: **{total_house_area:.2f} m²** (약 {pyeong:.1f}평) | 벽 높이: **{house_h:.1f}m** | **{num_floors}층 구조**")
 
-    # [자유 내벽 조절]
-    with st.expander("🧱 내벽 경계선 및 커스텀 벽체 자유 개조", expanded=True):
-        col_w1, col_w2, col_w3 = st.columns(3)
-        with col_w1:
-            y_mid = st.slider("가로 중앙 내벽 Y 위치 (m):", min_value=2.0, max_value=max(2.1, house_l - 2.0), value=min(house_l*0.55, house_l-2.0), step=0.1)
-            x_mid1 = st.slider("거실/안방 경계 내벽 X 위치 (m):", min_value=1.0, max_value=max(1.1, house_w - 1.0), value=min(house_w*0.5, house_w-1.0), step=0.1)
-        with col_w2:
-            x_mid2 = st.slider("작은방/주방 경계 내벽 X 위치 (m):", min_value=1.0, max_value=max(1.1, house_w - 1.0), value=min(house_w*0.38, house_w-1.0), step=0.1)
-            x_mid3 = st.slider("주방/욕실 경계 내벽 X 위치 (m):", min_value=1.0, max_value=max(1.1, house_w - 1.0), value=min(house_w*0.75, house_w-1.0), step=0.1)
-        with col_w3:
-            y_bath = st.slider("욕실/현관 경계 내벽 Y 위치 (m):", min_value=min(y_mid + 0.5, house_l - 0.5), max_value=max(y_mid + 0.6, house_l - 0.2), value=min(house_l*0.8, house_l-0.2), step=0.1)
+    # 세션 상태 벽 위치 초기화
+    if "y_mid" not in st.session_state:
+        st.session_state.y_mid = house_l * 0.55
+    if "x_mid1" not in st.session_state:
+        st.session_state.x_mid1 = house_w * 0.5
+    if "x_mid2" not in st.session_state:
+        st.session_state.x_mid2 = house_w * 0.38
+    if "x_mid3" not in st.session_state:
+        st.session_state.x_mid3 = house_w * 0.75
+    if "y_bath" not in st.session_state:
+        st.session_state.y_bath = house_l * 0.80
 
-        st.markdown("---")
-        st.markdown("##### 🔨 사용자 자유 커스텀 벽체/파티션 추가")
-        cw1, cw2, cw3, cw4 = st.columns(4)
-        with cw1:
-            cw_type = st.selectbox("구조물 종류:", options=["내벽 파티션 (Wall)", "방문/출입문 (Door)", "창문 (Window)"])
-            cw_x = st.number_input("시작 X 좌표 (m):", min_value=0.0, max_value=house_w, value=2.0, step=0.2)
-        with cw2:
-            cw_y = st.number_input("시작 Y 좌표 (m):", min_value=0.0, max_value=house_l, value=2.0, step=0.2)
-            cw_w = st.number_input("길이/폭 (m):", min_value=0.2, max_value=10.0, value=2.0, step=0.1)
-        with cw3:
-            cw_dir = st.selectbox("배치 방향:", options=["가로 방향 (E-W)", "세로 방향 (N-S)"])
-            cw_h = st.number_input("높이 (m):", min_value=0.5, max_value=house_h, value=house_h * 0.85, step=0.1)
-        with cw4:
-            cw_z = st.number_input("바닥 Z 높이 (m):", min_value=0.0, max_value=5.0, value=0.0, step=0.1)
-            if st.button("➕ 커스텀 벽체/창/문 설치"):
-                if "custom_walls" not in st.session_state:
-                    st.session_state.custom_walls = []
-                st.session_state.custom_walls.append({
-                    "type": cw_type, "x": cw_x, "y": cw_y, "w": cw_w,
-                    "dir": cw_dir, "h": cw_h, "z": cw_z
-                })
-                st.success("새 개조 건축 요소가 추가되었습니다!")
-                st.rerun()
-
-        if "custom_walls" in st.session_state and st.session_state.custom_walls:
-            for idx, wall_item in enumerate(st.session_state.custom_walls):
-                c_col1, c_col2 = st.columns([4, 1])
-                c_col1.write(f"• **[{wall_item['type']}]** ({wall_item['x']}m, {wall_item['y']}m), {wall_item['dir']}, 길이: {wall_item['w']}m")
-                if c_col2.button("삭제", key=f"del_wall_{idx}"):
-                    st.session_state.custom_walls.pop(idx)
-                    st.rerun()
+    y_mid = st.session_state.y_mid
+    x_mid1 = st.session_state.x_mid1
+    x_mid2 = st.session_state.x_mid2
+    x_mid3 = st.session_state.x_mid3
+    y_bath = st.session_state.y_bath
 
     wall_th = 0.15
     door_w = 0.9
@@ -159,10 +131,10 @@ try:
     all_rooms = {**rooms_1f, **rooms_2f}
 
     # -------------------------------------------------------------
-    # 4. 🤖 AI 기반 인간공학적 스마트 자동 공간 최적화 알고리즘
+    # 4. 🤖 AI 스마트 공간 자동 가구 분산 배치 함수
     # -------------------------------------------------------------
     def apply_ai_smart_layout():
-        """가구가 겹치거나 한곳에 몰리지 않고 인간공학적으로 방 벽면에 착붙 최적 배치"""
+        """각 가구를 해당하는 방 영역 안의 벽면에 맞게 정확히 분산 자동 배치"""
         r_liv = rooms_1f["[1층] 거실 (Living Room)"]
         r_mas = rooms_1f["[1층] 안방 (Master Bedroom)"]
         r_bed2 = rooms_1f["[1층] 작은방 (Bedroom 2)"]
@@ -171,76 +143,100 @@ try:
         r_ent = rooms_1f["[1층] 현관 (Entrance)"]
 
         st.session_state.custom_items = [
-            # [현관] 통로 개방 (오른쪽 벽 부착)
+            # [거실] 소파 남측 벽, 테이블 중앙, TV장 북측 벽
+            {"name": "4인용 패브릭 소파", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_liv["x0"] + 0.3, "abs_y": r_liv["y0"] + 0.2, "w": min(2.4, r_liv["w"]-0.6), "l": 0.9, "h": 0.85, "color": "#5C6BC0", "rot": 0},
+            {"name": "원목 소파 테이블", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_liv["x0"] + 0.8, "abs_y": r_liv["y0"] + 1.4, "w": 1.1, "l": 0.6, "h": 0.4, "color": "#8D6E63", "rot": 0},
+            {"name": "대형 거실 TV장", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_liv["x0"] + 0.5, "abs_y": r_liv["y0"] + r_liv["l"] - 0.55, "w": min(2.0, r_liv["w"]-0.8), "l": 0.4, "h": 0.5, "color": "#4E342E", "rot": 0},
+            {"name": "75인치 스마트 TV", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "대형 거실 TV장", "abs_x": r_liv["x0"] + 0.7, "abs_y": r_liv["y0"] + r_liv["l"] - 0.5, "w": 1.6, "l": 0.15, "h": 0.9, "color": "#1A237E", "rot": 0},
+
+            # [안방] 침대 동측 벽 밀착, 붙박이장 북측 벽 밀착
+            {"name": "퀸 사이즈 침대", "room": "[1층] 안방 (Master Bedroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_mas["x0"] + r_mas["w"] - 1.8, "abs_y": r_mas["y0"] + 0.3, "w": 1.6, "l": 2.1, "h": 0.55, "color": "#3949AB", "rot": 0},
+            {"name": "원목 침대 협탁", "room": "[1층] 안방 (Master Bedroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_mas["x0"] + r_mas["w"] - 2.4, "abs_y": r_mas["y0"] + 0.3, "w": 0.5, "l": 0.4, "h": 0.5, "color": "#A1887F", "rot": 0},
+            {"name": "안방 대형 붙박이장", "room": "[1층] 안방 (Master Bedroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_mas["x0"] + 0.3, "abs_y": r_mas["y0"] + r_mas["l"] - 0.7, "w": min(2.2, r_mas["w"]-0.6), "l": 0.65, "h": 2.1, "color": "#6D4C41", "rot": 0},
+
+            # [작은방] 서측 벽 침대, 동측 벽 책상
+            {"name": "슈퍼싱글 침대", "room": "[1층] 작은방 (Bedroom 2)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_bed2["x0"] + 0.2, "abs_y": r_bed2["y0"] + 0.3, "w": 1.1, "l": 2.0, "h": 0.5, "color": "#0288D1", "rot": 0},
+            {"name": "1인용 집중 스터디 책상", "room": "[1층] 작은방 (Bedroom 2)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_bed2["x0"] + r_bed2["w"] - 1.3, "abs_y": r_bed2["y0"] + 0.3, "w": 1.2, "l": 0.7, "h": 0.75, "color": "#26A69A", "rot": 0},
+
+            # [주방] 식탁 중앙, 냉장고 코너
+            {"name": "4인용 아일랜드 식탁", "room": "[1층] 주방/식당 (Kitchen)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_kit["x0"] + 0.2, "abs_y": r_kit["y0"] + 0.8, "w": min(1.4, r_kit["w"]-0.4), "l": 0.8, "h": 0.75, "color": "#66BB6A", "rot": 0},
+            {"name": "양문형 비스포크 냉장고", "room": "[1층] 주방/식당 (Kitchen)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_kit["x0"] + r_kit["w"] - 1.05, "abs_y": r_kit["y0"] + 0.2, "w": 0.95, "l": 0.9, "h": 1.85, "color": "#78909C", "rot": 0},
+
+            # [욕실] 세면대 및 샤워부스 벽 부착
+            {"name": "양변기 & 세면대 세트", "room": "[1층] 욕실/화장실 (Bathroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_bath["x0"] + 0.15, "abs_y": r_bath["y0"] + 0.15, "w": min(0.9, r_bath["w"]-0.2), "l": 0.6, "h": 0.8, "color": "#00BCD4", "rot": 0},
+            {"name": "유리 샤워부스/욕조", "room": "[1층] 욕실/화장실 (Bathroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_bath["x0"] + r_bath["w"] - 0.95, "abs_y": r_bath["y0"] + 0.15, "w": min(0.9, r_bath["w"]-0.2), "l": 0.9, "h": 1.9, "color": "#4DD0E1", "rot": 0},
+
+            # [현관] 신발장 및 슬라이딩 중문
             {"name": "🚪 현관 슬라이딩 중문", "room": "[1층] 현관 (Entrance)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_ent["x0"] + 0.1, "abs_y": r_ent["y0"] + 0.05, "w": min(1.2, r_ent["w"]-0.2), "l": 0.1, "h": 2.1, "color": "#3E2723", "rot": 0},
-            {"name": "신발장 및 전신거울", "room": "[1층] 현관 (Entrance)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_ent["x0"] + r_ent["w"] - 0.45, "abs_y": r_ent["y0"] + 0.3, "w": 0.4, "l": min(1.0, r_ent["l"]-0.4), "h": 1.4, "color": "#795548", "rot": 0},
-
-            # [거실] 소파 남측 벽 착붙, TV 북측 벽 착붙, 소파테이블 중앙
-            {"name": "4인용 패브릭 소파", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_liv["x0"] + 0.4, "abs_y": r_liv["y0"] + 0.2, "w": min(2.4, r_liv["w"]-0.8), "l": 0.9, "h": 0.85, "color": "#5C6BC0", "rot": 0},
-            {"name": "원목 소파 테이블", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_liv["x0"] + 1.0, "abs_y": r_liv["y0"] + 1.5, "w": 1.1, "l": 0.6, "h": 0.4, "color": "#8D6E63", "rot": 0},
-            {"name": "대형 거실 TV장", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_liv["x0"] + 0.6, "abs_y": r_liv["y0"] + r_liv["l"] - 0.5, "w": min(2.0, r_liv["w"]-1.0), "l": 0.4, "h": 0.5, "color": "#4E342E", "rot": 0},
-            {"name": "75인치 스마트 TV", "room": "[1층] 거실 (Living Room)", "type": "일반 가구", "base_item": "대형 거실 TV장", "abs_x": r_liv["x0"] + 0.8, "abs_y": r_liv["y0"] + r_liv["l"] - 0.45, "w": 1.6, "l": 0.15, "h": 0.9, "color": "#1A237E", "rot": 0},
-
-            # [안방] 동측 외벽 침대 헤드 밀착, 북측 붙박이장
-            {"name": "퀸 사이즈 침대", "room": "[1층] 안방 (Master Bedroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_mas["x0"] + r_mas["w"] - 1.8, "abs_y": r_mas["y0"] + 0.4, "w": 1.6, "l": 2.1, "h": 0.55, "color": "#3949AB", "rot": 0},
-            {"name": "원목 침대 협탁", "room": "[1층] 안방 (Master Bedroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_mas["x0"] + r_mas["w"] - 2.4, "abs_y": r_mas["y0"] + 0.4, "w": 0.5, "l": 0.4, "h": 0.5, "color": "#A1887F", "rot": 0},
-            {"name": "안방 대형 붙박이장", "room": "[1층] 안방 (Master Bedroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_mas["x0"] + 0.4, "abs_y": r_mas["y0"] + r_mas["l"] - 0.75, "w": min(2.2, r_mas["w"]-0.8), "l": 0.65, "h": 2.1, "color": "#6D4C41", "rot": 0},
-
-            # [작은방] 서측 침대, 동측 책상
-            {"name": "슈퍼싱글 침대", "room": "[1층] 작은방 (Bedroom 2)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_bed2["x0"] + 0.2, "abs_y": r_bed2["y0"] + 0.4, "w": 1.1, "l": 2.0, "h": 0.5, "color": "#0288D1", "rot": 0},
-            {"name": "1인용 집중 스터디 책상", "room": "[1층] 작은방 (Bedroom 2)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_bed2["x0"] + r_bed2["w"] - 1.4, "abs_y": r_bed2["y0"] + 0.4, "w": 1.2, "l": 0.7, "h": 0.75, "color": "#26A69A", "rot": 0},
-
-            # [주방] 식탁 중앙, 냉장고 동측
-            {"name": "4인용 아일랜드 식탁", "room": "[1층] 주방/식당 (Kitchen)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_kit["x0"] + 0.3, "abs_y": r_kit["y0"] + 1.0, "w": min(1.4, r_kit["w"]-0.5), "l": 0.8, "h": 0.75, "color": "#66BB6A", "rot": 0},
-            {"name": "양문형 비스포크 냉장고", "room": "[1층] 주방/식당 (Kitchen)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_kit["x0"] + r_kit["w"] - 1.1, "abs_y": r_kit["y0"] + 0.3, "w": 0.95, "l": 0.9, "h": 1.85, "color": "#78909C", "rot": 0},
-
-            # [욕실] 구석 코너 밀착
-            {"name": "양변기 & 세면대 세트", "room": "[1층] 욕실/화장실 (Bathroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_bath["x0"] + 0.2, "abs_y": r_bath["y0"] + 0.2, "w": min(0.9, r_bath["w"]-0.3), "l": 0.6, "h": 0.8, "color": "#00BCD4", "rot": 0},
-            {"name": "유리 샤워부스/욕조", "room": "[1층] 욕실/화장실 (Bathroom)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_bath["x0"] + r_bath["w"] - 1.0, "abs_y": r_bath["y0"] + 0.2, "w": min(0.9, r_bath["w"]-0.3), "l": 0.9, "h": 1.9, "color": "#4DD0E1", "rot": 0}
+            {"name": "신발장 및 전신거울", "room": "[1층] 현관 (Entrance)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_ent["x0"] + r_ent["w"] - 0.45, "abs_y": r_ent["y0"] + 0.2, "w": 0.4, "l": min(1.0, r_ent["l"]-0.3), "h": 1.4, "color": "#795548", "rot": 0}
         ]
 
+    # 최초 초기화 또는 리셋 시 실행
     if "custom_items" not in st.session_state:
         apply_ai_smart_layout()
 
     # -------------------------------------------------------------
-    # 5. 🤖 AI 공간 최적화 실행 & 수동 가구 회전/이동 컨트롤
+    # 5. 🎮 [배치도 캔버스 통합 메인 제어 화면]
     # -------------------------------------------------------------
-    st.divider()
-    st.subheader("2. 🤖 AI 공간 최적화 자동 배치 & 가구 이동/회전")
+    st.subheader("🎮 2D 스마트 평면도 통합 편집기 (가구 이동/360°회전 & 벽체 자유 수정)")
     
-    col_ai1, col_ai2 = st.columns([3, 5])
-    with col_ai1:
+    # 캔버스 바로 상단 컨트롤 패널
+    ctrl_col1, ctrl_col2 = st.columns([4, 6])
+    with ctrl_col1:
         if st.button("✨ AI 기반 인간공학 자동 공간 최적화 재배치", use_container_width=True):
             apply_ai_smart_layout()
-            st.success("🤖 AI가 방 구조 및 동선을 분석하여 가구를 가장 쾌적하게 자동 배치했습니다!")
+            st.success("🤖 각 방별 동선과 치수에 맞춰 가구를 가장 쾌적하게 자동 분산 배치했습니다!")
             st.rerun()
 
-    valid_furniture_names = [item["name"] for item in st.session_state.custom_items if item["base_item"] == "바닥 (z=0)"]
-    if valid_furniture_names:
-        with st.expander("🛋️ 수동 가구 상세 위치 (X, Y) 및 360도 회전 조절", expanded=False):
-            f_col1, f_col2, f_col3 = st.columns([3, 3, 2])
-            with f_col1:
-                sel_furniture = st.selectbox("🎯 가구 선택:", options=valid_furniture_names)
-            
-            target_f = next((item for item in st.session_state.custom_items if item["name"] == sel_furniture), None)
-            if target_f:
-                with f_col2:
-                    new_abs_x = st.slider("X 절대 좌표 (m):", min_value=0.0, max_value=house_w - target_f["w"], value=min(float(target_f.get("abs_x", 1.0)), house_w - target_f["w"]), step=0.1)
-                    new_abs_y = st.slider("Y 절대 좌표 (m):", min_value=0.0, max_value=house_l - target_f["l"], value=min(float(target_f.get("abs_y", 1.0)), house_l - target_f["l"]), step=0.1)
-                    target_f["abs_x"] = new_abs_x
-                    target_f["abs_y"] = new_abs_y
-                with f_col3:
-                    new_rot = st.slider("회전 각도 (°):", min_value=0, max_value=360, value=int(target_f.get("rot", 0)), step=15)
-                    target_f["rot"] = new_rot
+    # 배치도 화면 자체에서 벽 설정/추가 수정을 바로 할 수 있는 확장기
+    with st.expander("🧱 배치도 상에서 내벽 경계선 이동 및 벽체/파티션/창문/문 직접 수정", expanded=True):
+        w_tab1, w_tab2 = st.tabs(["📐 내벽 경계 위치 수정", "🔨 커스텀 벽체/파티션/창문 추가"])
+        with w_tab1:
+            wc1, wc2, wc3 = st.columns(3)
+            with wc1:
+                st.session_state.y_mid = st.slider("가로 중앙 내벽 Y 위치 (m):", min_value=2.0, max_value=max(2.1, house_l - 2.0), value=float(y_mid), step=0.1)
+                st.session_state.x_mid1 = st.slider("거실/안방 경계 X 위치 (m):", min_value=1.0, max_value=max(1.1, house_w - 1.0), value=float(x_mid1), step=0.1)
+            with wc2:
+                st.session_state.x_mid2 = st.slider("작은방/주방 경계 X 위치 (m):", min_value=1.0, max_value=max(1.1, house_w - 1.0), value=float(x_mid2), step=0.1)
+                st.session_state.x_mid3 = st.slider("주방/욕실 경계 X 위치 (m):", min_value=1.0, max_value=max(1.1, house_w - 1.0), value=float(x_mid3), step=0.1)
+            with wc3:
+                st.session_state.y_bath = st.slider("욕실/현관 경계 Y 위치 (m):", min_value=min(y_mid + 0.5, house_l - 0.5), max_value=max(y_mid + 0.6, house_l - 0.2), value=float(y_bath), step=0.1)
+                if st.button("🔄 방 벽면 위치 변경 적용"):
+                    st.rerun()
 
-    st.divider()
+        with w_tab2:
+            cw1, cw2, cw3, cw4 = st.columns(4)
+            with cw1:
+                cw_type = st.selectbox("구조물 종류:", options=["내벽 파티션 (Wall)", "방문/출입문 (Door)", "창문 (Window)"])
+                cw_x = st.number_input("시작 X 좌표 (m):", min_value=0.0, max_value=house_w, value=2.0, step=0.2)
+            with cw2:
+                cw_y = st.number_input("시작 Y 좌표 (m):", min_value=0.0, max_value=house_l, value=2.0, step=0.2)
+                cw_w = st.number_input("길이/폭 (m):", min_value=0.2, max_value=10.0, value=2.0, step=0.1)
+            with cw3:
+                cw_dir = st.selectbox("배치 방향:", options=["가로 방향 (E-W)", "세로 방향 (N-S)"])
+                cw_h = st.number_input("높이 (m):", min_value=0.5, max_value=house_h, value=house_h * 0.85, step=0.1)
+            with cw4:
+                cw_z = st.number_input("바닥 Z 높이 (m):", min_value=0.0, max_value=5.0, value=0.0, step=0.1)
+                if st.button("➕ 배치도에 벽/창/문 즉시 추가"):
+                    if "custom_walls" not in st.session_state:
+                        st.session_state.custom_walls = []
+                    st.session_state.custom_walls.append({
+                        "type": cw_type, "x": cw_x, "y": cw_y, "w": cw_w,
+                        "dir": cw_dir, "h": cw_h, "z": cw_z
+                    })
+                    st.success("배치도에 새 구조물이 추가되었습니다!")
+                    st.rerun()
 
-    # -------------------------------------------------------------
-    # 6. 🎮 [배치 게임판] 마우스 드래그 & 3D 실시간 동기화 캔버스
-    # -------------------------------------------------------------
-    st.subheader("3. 🎮 [가구배치 게임판] 마우스 커서 드래그 이동 & 3D 실시간 적용")
-    st.write("💡 아래 배치도에서 **가구를 마우스로 드래그**하면 즉시 좌표가 계산되며, **'💾 3D 입체모형에 바로 적용'** 버튼 클릭 시 3D 도면에 실시간 반영됩니다.")
+            if "custom_walls" in st.session_state and st.session_state.custom_walls:
+                st.markdown("##### 🛠️ 현재 추가된 벽체 목록")
+                for idx, wall_item in enumerate(st.session_state.custom_walls):
+                    c_col1, c_col2 = st.columns([4, 1])
+                    c_col1.write(f"• **[{wall_item['type']}]** ({wall_item['x']}m, {wall_item['y']}m), {wall_item['dir']}, 길이: {wall_item['w']}m")
+                    if c_col2.button("삭제", key=f"del_wall_{idx}"):
+                        st.session_state.custom_walls.pop(idx)
+                        st.rerun()
 
+    # 가구 데이터 JSON 패킹
     canvas_items_json = []
     for idx, item in enumerate(st.session_state.custom_items):
         canvas_items_json.append({
@@ -249,6 +245,9 @@ try:
             "w": item["w"], "l": item["l"], "color": item["color"],
             "rot": item.get("rot", 0), "is_base": (item["base_item"] == "바닥 (z=0)")
         })
+
+    # 커스텀 벽체 JSON
+    custom_walls_json = st.session_state.get("custom_walls", [])
 
     drag_canvas_html = f"""
     <!DOCTYPE html>
@@ -262,10 +261,14 @@ try:
         .status-bar {{ margin-top: 8px; padding: 10px; background: #212529; color: #f8f9fa; border-radius: 6px; font-weight: bold; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }}
         .sync-btn {{ background-color: #0d6efd; color: white; border: none; padding: 8px 16px; border-radius: 5px; font-weight: bold; cursor: pointer; transition: 0.2s; }}
         .sync-btn:hover {{ background-color: #0b5ed7; }}
+        .guide-banner {{ background: #e7f5ff; border: 1px solid #a5d8ff; padding: 8px; border-radius: 6px; font-size: 13px; color: #1864ab; font-weight: bold; margin-bottom: 6px; }}
     </style>
     </head>
     <body>
     <div id="canvas-container">
+        <div class="guide-banner">
+            💡 <b>조작법:</b> 가구 클릭 후 드래그하여 이동 | <b>가구 클릭 후 'R' 키를 누른 상태에서 마우스 휠을 굴리면 360도 미세 회전!</b> (더블클릭 시 90도 회전)
+        </div>
         <canvas id="floorCanvas" width="900" height="650"></canvas>
         <div class="status-bar">
             <span id="statusText">🎮 가구를 마우스 커서로 클릭 후 원하는 위치로 드래그하세요!</span>
@@ -282,12 +285,14 @@ try:
         const originY = 50;
 
         const rooms = {json.dumps([{"name": k, "x": v["x0"], "y": v["y0"], "w": v["w"], "l": v["l"], "color": v["color"]} for k, v in rooms_1f.items()])};
+        const customWalls = {json.dumps(custom_walls_json)};
         let items = {json.dumps(canvas_items_json)};
 
         let selectedItem = null;
         let isDragging = false;
         let dragOffsetX = 0;
         let dragOffsetY = 0;
+        let isRPressed = false;
 
         function draw() {{
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -310,7 +315,21 @@ try:
                 ctx.fillText(r.name.split(' ')[1] || r.name, rx + 6, ry + 18);
             }});
 
-            // 2) 가구 렌더링
+            // 2) 추가 설치 커스텀 벽체 표시
+            customWalls.forEach(w => {{
+                let wx = originX + w.x * scale;
+                let wy = originY + w.y * scale;
+                let ww = (w.dir === "가로 방향 (E-W)" ? w.w : 0.15) * scale;
+                let wl = (w.dir === "가로 방향 (E-W)" ? 0.15 : w.w) * scale;
+
+                ctx.fillStyle = w.type.includes("파티션") ? "#2b8a3e" : (w.type.includes("문") ? "#d9480f" : "#1971c2");
+                ctx.fillRect(wx, wy, ww, wl);
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(wx, wy, ww, wl);
+            }});
+
+            // 3) 가구 렌더링
             items.forEach(item => {{
                 if (!item.is_base) return;
                 
@@ -348,6 +367,7 @@ try:
             }});
         }}
 
+        // 마우스 클릭 선택
         canvas.addEventListener('mousedown', (e) => {{
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
@@ -367,7 +387,7 @@ try:
                     isDragging = true;
                     dragOffsetX = mx - ix;
                     dragOffsetY = my - iy;
-                    statusText.innerHTML = "🎯 선택됨: <b>" + item.name + "</b> - 마우스 드래그로 이동!";
+                    statusText.innerHTML = "🎯 선택됨: <b>" + item.name + "</b> (각도: " + (item.rot||0) + "°) - 드래그 이동 또는 'R'키+휠로 회전!";
                     draw();
                     return;
                 }}
@@ -377,6 +397,7 @@ try:
             draw();
         }});
 
+        // 드래그 이동
         canvas.addEventListener('mousemove', (e) => {{
             if (!isDragging || !selectedItem) return;
 
@@ -397,10 +418,35 @@ try:
         window.addEventListener('mouseup', () => {{
             if (isDragging && selectedItem) {{
                 isDragging = false;
-                statusText.innerHTML = "✅ 이동 완료: <b>" + selectedItem.name + "</b> [ X: " + selectedItem.x.toFixed(2) + "m, Y: " + selectedItem.y.toFixed(2) + "m ] -> 오른쪽 적용 버튼 클릭!";
+                statusText.innerHTML = "✅ 이동 완료: <b>" + selectedItem.name + "</b> [ X: " + selectedItem.x.toFixed(2) + "m, Y: " + selectedItem.y.toFixed(2) + "m ] -> 3D 적용 버튼 클릭!";
             }}
         }});
 
+        // 키보드 'R' 눌림 감지
+        window.addEventListener('keydown', (e) => {{
+            if (e.key === 'r' || e.key === 'R') {{
+                isRPressed = true;
+            }}
+        }});
+
+        window.addEventListener('keyup', (e) => {{
+            if (e.key === 'r' || e.key === 'R') {{
+                isRPressed = false;
+            }}
+        }});
+
+        // 🌟 R 키 누른 상태에서 마우스 휠로 360도 미세 회전 🌟
+        canvas.addEventListener('wheel', (e) => {{
+            if (selectedItem && isRPressed) {{
+                e.preventDefault(); // 페이지 스크롤 방지
+                let rotStep = e.deltaY < 0 ? 5 : -5;
+                selectedItem.rot = ((selectedItem.rot || 0) + rotStep + 360) % 360;
+                statusText.innerHTML = "🔄 휠 회전 완료: <b>" + selectedItem.name + "</b> -> " + selectedItem.rot + "°";
+                draw();
+            }}
+        }}, {{ passive: false }});
+
+        // 더블클릭 90도 회전
         canvas.addEventListener('dblclick', () => {{
             if (selectedItem) {{
                 selectedItem.rot = ((selectedItem.rot || 0) + 90) % 360;
@@ -428,14 +474,14 @@ try:
     </html>
     """
 
-    components.html(drag_canvas_html, height=720)
+    components.html(drag_canvas_html, height=730)
 
     st.divider()
 
     # -------------------------------------------------------------
-    # 7. 정밀 3D 입체 건축 평면도 시각화
+    # 6. 정밀 3D 입체 건축 평면도 시각화
     # -------------------------------------------------------------
-    st.subheader("🏗️ 4. 정밀 3D 입체 건축 평면도 시각화")
+    st.subheader("🏗️ 3D 입체 건축 평면도 시각화 (실시간 반영)")
 
     fig = go.Figure()
 
