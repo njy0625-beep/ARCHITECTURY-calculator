@@ -28,14 +28,13 @@ DEFAULT_ITEMS = [
     {"id": "desk", "name": "작은방 책상", "x": 0.8, "y": 4.8, "w": 1.4, "l": 0.9, "h": 0.75, "rot": 0.0, "color": "#1ABC9C"}
 ]
 
-# 3. 새로운 세션 키(floorplan_items, floorplan_walls)를 사용하여 캐시 오류 우회
+# 3. 세션 데이터 초기화
 if "floorplan_walls" not in st.session_state or not isinstance(st.session_state["floorplan_walls"], dict):
     st.session_state["floorplan_walls"] = dict(DEFAULT_WALLS)
 
 if "floorplan_items" not in st.session_state or not isinstance(st.session_state["floorplan_items"], list):
     st.session_state["floorplan_items"] = list(DEFAULT_ITEMS)
 
-# 안전한 세션 데이터 추출 함수
 def get_safe_items():
     raw = st.session_state.get("floorplan_items")
     if not isinstance(raw, list):
@@ -70,7 +69,6 @@ st.write(f"🏠 **전체 주택 연면적:** `{house_w * house_l:.2f} m²` (약 
 st.markdown("---")
 st.subheader("🎮 2D 평면도 마우스 조작 편집기 (드래그 시 3D 모델에 실시간 반영)")
 
-# 안전한 데이터 정제
 current_walls = get_safe_walls()
 current_items = get_safe_items()
 
@@ -115,44 +113,40 @@ if canvas_data and isinstance(canvas_data, dict):
                         original_it["rot"] = float(updated_it.get("rot", original_it.get("rot", 0.0)))
 
 # --------------------------------------------------------------------------
-# 7. 3D 입체 시각화 (Plotly)
+# 7. 정밀 3D 입체 시각화 (입체 육면체 및 시점 최적화)
 # --------------------------------------------------------------------------
 st.markdown("---")
 st.subheader("🏗️ 3D 입체 건축 평면도 시각화 (실시간 반영)")
 
 fig = go.Figure()
 
+# 6면(12개 삼각형) 완벽하게 닫힌 입체 육면체 생성 함수
 def create_box_3d(x, y, z, w, l, h, color, name):
     x_coords = [x, x + w, x + w, x, x, x + w, x + w, x]
     y_coords = [y, y, y + l, y + l, y, y, y + l, y + l]
     z_coords = [z, z, z, z, z + h, z + h, z + h, z + h]
     
-    i = [7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2]
-    j = [4, 5, 1, 2, 5, 6, 2, 3, 0, 1, 2, 1]
-    k = [6, 1, 5, 3, 6, 7, 3, 7, 1, 5, 7, 6]
+    # 6개 직사각형 면을 완전하게 덮는 12개 삼각 메시 인덱스
+    i = [0, 0, 4, 4, 0, 0, 3, 3, 0, 0, 1, 1]
+    j = [1, 2, 6, 7, 5, 4, 2, 6, 3, 7, 6, 5]
+    k = [2, 3, 5, 6, 1, 5, 6, 7, 7, 4, 2, 6]
     
     return go.Mesh3d(
         x=x_coords, y=y_coords, z=z_coords,
         i=i, j=j, k=k,
-        color=color, opacity=0.9, name=name, showscale=False
+        color=color, opacity=0.95, name=name, showscale=False,
+        flatshading=True,
+        lighting=dict(ambient=0.75, diffuse=0.8, specular=0.2)
     )
 
-def create_wall_3d(x1, y1, x2, y2, height, thickness=0.15, color="#555555"):
+def create_wall_3d(x1, y1, x2, y2, height, thickness=0.15, color="#4A4A4A"):
     if x1 == x2:
         return create_box_3d(x1 - thickness/2, min(y1, y2), 0, thickness, abs(y2 - y1), height, color, "벽체")
     else:
         return create_box_3d(min(x1, x2), y1 - thickness/2, 0, abs(x2 - x1), thickness, height, color, "벽체")
 
-# 바닥
-fig.add_trace(go.Mesh3d(
-    x=[0, house_w, house_w, 0, 0, house_w, house_w, 0],
-    y=[0, 0, house_l, house_l, 0, 0, house_l, house_l],
-    z=[0, 0, 0, 0, 0.05, 0.05, 0.05, 0.05],
-    i=[7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2],
-    j=[4, 5, 1, 2, 5, 6, 2, 3, 0, 1, 2, 1],
-    k=[6, 1, 5, 3, 6, 7, 3, 7, 1, 5, 7, 6],
-    color="#EAEAEA", opacity=0.5, name="바닥"
-))
+# 바닥판 (완벽한 단단한 사각 바닥)
+fig.add_trace(create_box_3d(0, 0, 0, house_w, house_l, 0.05, "#E2E8F0", "바닥"))
 
 # 3D 외벽
 fig.add_trace(create_wall_3d(0, 0, house_w, 0, wall_h))
@@ -168,7 +162,7 @@ fig.add_trace(create_wall_3d(w["x_mid2"], w["y_mid"], w["x_mid2"], house_l, wall
 fig.add_trace(create_wall_3d(w["x_mid3"], w["y_mid"], w["x_mid3"], house_l, wall_h))
 fig.add_trace(create_wall_3d(w["x_mid3"], w["y_bath"], house_w, w["y_bath"], wall_h))
 
-# 3D 가구 (2D와 1:1 동기화)
+# 3D 가구 (속이 찬 사각형 입체 가구)
 for item in get_safe_items():
     if isinstance(item, dict):
         fig.add_trace(create_box_3d(
@@ -182,15 +176,20 @@ for item in get_safe_items():
             name=str(item.get("name", "가구"))
         ))
 
+# 조감도 카메라 시점 및 음영 레이아웃 설정
 fig.update_layout(
     scene=dict(
-        xaxis=dict(range=[0, house_w], title="가로 (m)"),
-        yaxis=dict(range=[0, house_l], title="세로 (m)"),
-        zaxis=dict(range=[0, wall_h + 1], title="높이 (m)"),
-        aspectmode="data"
+        xaxis=dict(range=[0, house_w], title="가로 (m)", backgroundcolor="#F8FAFC", gridcolor="#CBD5E1"),
+        yaxis=dict(range=[0, house_l], title="세로 (m)", backgroundcolor="#F8FAFC", gridcolor="#CBD5E1"),
+        zaxis=dict(range=[0, wall_h + 1], title="높이 (m)", backgroundcolor="#F8FAFC", gridcolor="#CBD5E1"),
+        aspectmode="data",
+        camera=dict(
+            eye=dict(x=1.35, y=-1.35, z=1.45),
+            center=dict(x=0, y=0, z=-0.2)
+        )
     ),
     margin=dict(l=0, r=0, b=0, t=30),
-    height=600
+    height=650
 )
 
 st.plotly_chart(fig, use_container_width=True)
