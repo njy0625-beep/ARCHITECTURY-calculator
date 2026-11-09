@@ -2,10 +2,9 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@1.4.0/dist/streamlit-component-lib.js"></script>
     <style>
         * { box-sizing: border-box; }
-        body { font-family: 'Noto Sans KR', sans-serif; margin: 0; padding: 5px; background-color: #f8f9fa; user-select: none; }
+        body { font-family: 'Noto Sans KR', -apple-system, sans-serif; margin: 0; padding: 5px; background-color: #f8f9fa; user-select: none; }
         #canvas-container { width: 100%; text-align: center; background: #ffffff; border-radius: 12px; padding: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         canvas { border: 3px solid #343a40; background: #ffffff; border-radius: 8px; cursor: pointer; max-width: 100%; height: auto; display: block; margin: 0 auto; }
         .guide-banner { background: #e7f5ff; border: 1px solid #a5d8ff; padding: 8px 12px; border-radius: 6px; font-size: 13px; color: #1864ab; font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
@@ -24,6 +23,35 @@
 </div>
 
 <script>
+    // -------------------------------------------------------------
+    // Streamlit 커스텀 컴포넌트 내장 프로토콜 (외부 CDN 차단 100% 방지)
+    // -------------------------------------------------------------
+    (function() {
+        if (!window.Streamlit) {
+            window.Streamlit = {
+                setComponentReady: function() {
+                    window.parent.postMessage({isStreamlitMessage: true, type: "streamlit:componentReady", apiVersion: 1}, "*");
+                },
+                setFrameHeight: function(height) {
+                    window.parent.postMessage({isStreamlitMessage: true, type: "streamlit:setFrameHeight", height: height || document.body.scrollHeight}, "*");
+                },
+                setComponentValue: function(value) {
+                    window.parent.postMessage({isStreamlitMessage: true, type: "streamlit:setComponentValue", value: value}, "*");
+                },
+                events: {
+                    addEventListener: function(type, callback) {
+                        window.addEventListener("message", function(event) {
+                            if (event.data && event.data.isStreamlitMessage && event.data.type === type) {
+                                callback({ detail: event.data });
+                            }
+                        });
+                    }
+                },
+                RENDER_EVENT: "streamlit:render"
+            };
+        }
+    })();
+
     let houseW = 10.0;
     let houseL = 8.0;
     let walls = { y_mid: 4.4, x_mid1: 5.0, x_mid2: 3.8, x_mid3: 7.5, y_bath: 6.4 };
@@ -325,19 +353,11 @@
         }
     }, { passive: false });
 
-    // Streamlit 통신 준비 대기 함수 (폴링 처리)
-    function startStreamlitComponent() {
-        if (!window.Streamlit) {
-            setTimeout(startStreamlitComponent, 50);
-            return;
-        }
-        Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
-        Streamlit.setComponentReady();
-        Streamlit.setFrameHeight(680);
-        draw();
-    }
-
-    startStreamlitComponent();
+    // 컴포넌트 즉시 초기화
+    Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
+    Streamlit.setComponentReady();
+    Streamlit.setFrameHeight(680);
+    draw();
 </script>
 </body>
 </html>
