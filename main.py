@@ -15,7 +15,7 @@ st.caption("2D 평면도 내 직접 벽체/가구 드래그 조작 | 마우스 �
 st.divider()
 
 # -------------------------------------------------------------
-# 2. 안전한 형변환 및 3D 메쉬 생성 헬퍼 함수
+# 2. 안전한 형변환 및 헬퍼 함수
 # -------------------------------------------------------------
 def safe_float(val, default=0.0):
     """단일 값 또는 리스트 형태의 query_params 안전 변환 헬퍼"""
@@ -74,67 +74,6 @@ def create_3d_rotated_box(x0, y0, z0, dx, dy, dz, angle_deg=0, color="#888888", 
     )
 
 try:
-    # -------------------------------------------------------------
-    # 2.5. URL 쿼리 파라미터를 통한 2D -> 3D 실시간 자동 일괄 동기화
-    # -------------------------------------------------------------
-    query_params = st.query_params
-    
-    # 통합 실시간 데이터 동기화
-    if "sync_all" in query_params:
-        try:
-            # 1) 벽체 위치 반영
-            if "walls" in query_params:
-                w_raw = query_params["walls"]
-                w_str = w_raw[0] if isinstance(w_raw, list) else w_raw
-                walls_data = json.loads(w_str)
-                st.session_state.y_mid = safe_float(walls_data.get("y_mid"), 4.4)
-                st.session_state.x_mid1 = safe_float(walls_data.get("x_mid1"), 5.0)
-                st.session_state.x_mid2 = safe_float(walls_data.get("x_mid2"), 3.8)
-                st.session_state.x_mid3 = safe_float(walls_data.get("x_mid3"), 7.5)
-                st.session_state.y_bath = safe_float(walls_data.get("y_bath"), 6.4)
-
-            # 2) 전체 가구 위치 및 회전각 반영
-            if "items" in query_params:
-                i_raw = query_params["items"]
-                i_str = i_raw[0] if isinstance(i_raw, list) else i_raw
-                items_data = json.loads(i_str)
-                if "custom_items" in st.session_state:
-                    for item_state in items_data:
-                        s_id = safe_int(item_state.get("id"), -1)
-                        if 0 <= s_id < len(st.session_state.custom_items):
-                            st.session_state.custom_items[s_id]["abs_x"] = safe_float(item_state.get("x"))
-                            st.session_state.custom_items[s_id]["abs_y"] = safe_float(item_state.get("y"))
-                            st.session_state.custom_items[s_id]["rot"] = safe_int(item_state.get("rot"))
-            
-            st.toast("⚡ 2D 평면도 조작 내용이 3D 모델에 실시간 반영되었습니다!", icon="✨")
-        except Exception as e:
-            pass
-
-    # 하위 호환 단일 동기화 처리
-    if "sync_wall" in query_params:
-        try:
-            st.session_state.y_mid = safe_float(query_params.get("y_mid"), st.session_state.get("y_mid", 4.4))
-            st.session_state.x_mid1 = safe_float(query_params.get("x_mid1"), st.session_state.get("x_mid1", 5.0))
-            st.session_state.x_mid2 = safe_float(query_params.get("x_mid2"), st.session_state.get("x_mid2", 3.8))
-            st.session_state.x_mid3 = safe_float(query_params.get("x_mid3"), st.session_state.get("x_mid3", 7.5))
-            st.session_state.y_bath = safe_float(query_params.get("y_bath"), st.session_state.get("y_bath", 6.4))
-        except Exception:
-            pass
-
-    if "sync_id" in query_params:
-        try:
-            s_id = safe_int(query_params.get("sync_id"), -1)
-            s_x = safe_float(query_params.get("sync_x"), 0.0)
-            s_y = safe_float(query_params.get("sync_y"), 0.0)
-            s_rot = safe_int(query_params.get("sync_rot"), 0)
-            
-            if "custom_items" in st.session_state and 0 <= s_id < len(st.session_state.custom_items):
-                st.session_state.custom_items[s_id]["abs_x"] = s_x
-                st.session_state.custom_items[s_id]["abs_y"] = s_y
-                st.session_state.custom_items[s_id]["rot"] = s_rot
-        except Exception:
-            pass
-
     # -------------------------------------------------------------
     # 3. 건축 전체 치수 및 상단 기본 설정
     # -------------------------------------------------------------
@@ -230,8 +169,83 @@ try:
             {"name": "신발장 및 전신거울", "room": "[1층] 현관 (Entrance)", "type": "일반 가구", "base_item": "바닥 (z=0)", "abs_x": r_ent["x0"] + r_ent["w"] - 0.45, "abs_y": r_ent["y0"] + 0.2, "w": 0.4, "l": min(1.0, r_ent["l"]-0.3), "h": 1.4, "color": "#795548", "rot": 0}
         ]
 
+    # custom_items 우선 생성보장
     if "custom_items" not in st.session_state:
         apply_ai_smart_layout()
+
+    # -------------------------------------------------------------
+    # 4.5. URL 쿼리 파라미터 (sync_all, sync_wall, sync_id) 수신 처리
+    # (custom_items가 세션에 확정된 후 반영하므로 누락 방지!)
+    # -------------------------------------------------------------
+    query_params = st.query_params
+    
+    if "sync_all" in query_params:
+        try:
+            if "walls" in query_params:
+                w_raw = query_params["walls"]
+                w_str = w_raw[0] if isinstance(w_raw, list) else w_raw
+                walls_data = json.loads(w_str)
+                st.session_state.y_mid = safe_float(walls_data.get("y_mid"), 4.4)
+                st.session_state.x_mid1 = safe_float(walls_data.get("x_mid1"), 5.0)
+                st.session_state.x_mid2 = safe_float(walls_data.get("x_mid2"), 3.8)
+                st.session_state.x_mid3 = safe_float(walls_data.get("x_mid3"), 7.5)
+                st.session_state.y_bath = safe_float(walls_data.get("y_bath"), 6.4)
+
+            if "items" in query_params:
+                i_raw = query_params["items"]
+                i_str = i_raw[0] if isinstance(i_raw, list) else i_raw
+                items_data = json.loads(i_str)
+                for item_state in items_data:
+                    s_id = safe_int(item_state.get("id"), -1)
+                    if 0 <= s_id < len(st.session_state.custom_items):
+                        st.session_state.custom_items[s_id]["abs_x"] = safe_float(item_state.get("x"))
+                        st.session_state.custom_items[s_id]["abs_y"] = safe_float(item_state.get("y"))
+                        st.session_state.custom_items[s_id]["rot"] = safe_int(item_state.get("rot"))
+            
+            st.toast("⚡ 2D 평면도 조작 내용이 3D 모델에 실시간 반영되었습니다!", icon="✨")
+        except Exception:
+            pass
+
+    if "sync_wall" in query_params:
+        try:
+            st.session_state.y_mid = safe_float(query_params.get("y_mid"), st.session_state.get("y_mid", 4.4))
+            st.session_state.x_mid1 = safe_float(query_params.get("x_mid1"), st.session_state.get("x_mid1", 5.0))
+            st.session_state.x_mid2 = safe_float(query_params.get("x_mid2"), st.session_state.get("x_mid2", 3.8))
+            st.session_state.x_mid3 = safe_float(query_params.get("x_mid3"), st.session_state.get("x_mid3", 7.5))
+            st.session_state.y_bath = safe_float(query_params.get("y_bath"), st.session_state.get("y_bath", 6.4))
+        except Exception:
+            pass
+
+    if "sync_id" in query_params:
+        try:
+            s_id = safe_int(query_params.get("sync_id"), -1)
+            s_x = safe_float(query_params.get("sync_x"), 0.0)
+            s_y = safe_float(query_params.get("sync_y"), 0.0)
+            s_rot = safe_int(query_params.get("sync_rot"), 0)
+            
+            if 0 <= s_id < len(st.session_state.custom_items):
+                st.session_state.custom_items[s_id]["abs_x"] = s_x
+                st.session_state.custom_items[s_id]["abs_y"] = s_y
+                st.session_state.custom_items[s_id]["rot"] = s_rot
+        except Exception:
+            pass
+
+    # 파라미터로 최신화된 벽 위치 재동기화
+    y_mid = safe_float(st.session_state.y_mid, house_l * 0.55)
+    x_mid1 = safe_float(st.session_state.x_mid1, house_w * 0.5)
+    x_mid2 = safe_float(st.session_state.x_mid2, house_w * 0.38)
+    x_mid3 = safe_float(st.session_state.x_mid3, house_w * 0.75)
+    y_bath = safe_float(st.session_state.y_bath, house_l * 0.80)
+
+    rooms_1f = {
+        "[1층] 거실 (Living Room)": {"x0": 0, "y0": 0, "w": x_mid1, "l": y_mid, "color": "#FAFAFA", "z": 0},
+        "[1층] 안방 (Master Bedroom)": {"x0": x_mid1, "y0": 0, "w": house_w - x_mid1, "l": y_mid, "color": "#F3E5F5", "z": 0},
+        "[1층] 작은방 (Bedroom 2)": {"x0": 0, "y0": y_mid, "w": x_mid2, "l": house_l - y_mid, "color": "#E1F5FE", "z": 0},
+        "[1층] 주방/식당 (Kitchen)": {"x0": x_mid2, "y0": y_mid, "w": max(0.5, x_mid3 - x_mid2), "l": house_l - y_mid, "color": "#FFF3E0", "z": 0},
+        "[1층] 욕실/화장실 (Bathroom)": {"x0": x_mid3, "y0": y_mid, "w": house_w - x_mid3, "l": max(0.5, y_bath - y_mid), "color": "#E0F7FA", "z": 0},
+        "[1층] 현관 (Entrance)": {"x0": x_mid3, "y0": y_bath, "w": house_w - x_mid3, "l": house_l - y_bath, "color": "#E8EAF6", "z": 0}
+    }
+    all_rooms = {**rooms_1f, **rooms_2f}
 
     # -------------------------------------------------------------
     # 5. 🎮 [배치도 캔버스 통합 메인 제어 화면]
@@ -543,7 +557,6 @@ try:
             if (isDragging) {{
                 isDragging = false;
                 statusText.innerHTML = "⚡ 3D 모델에 변경사항 실시간 자동 반영 중...";
-                // 마우스 드래그 종료 즉시 전체 벽/가구 위치 자동 동기화!
                 syncAllToStreamlit();
             }}
         }});
@@ -579,7 +592,6 @@ try:
             const url = new URL(window.parent.location.href);
             url.searchParams.set('sync_all', '1');
             
-            // 벽 위치 최신화
             const wData = {{
                 y_mid: parseFloat(walls.y_mid.toFixed(2)),
                 x_mid1: parseFloat(walls.x_mid1.toFixed(2)),
@@ -589,7 +601,6 @@ try:
             }};
             url.searchParams.set('walls', JSON.stringify(wData));
 
-            // 전체 가구 위치 및 회전 최신화
             const itemStates = items.map(it => ({{
                 id: it.id,
                 x: parseFloat(it.x.toFixed(2)),
