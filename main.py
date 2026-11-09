@@ -10,27 +10,32 @@ parent_dir = os.path.dirname(os.path.abspath(__file__))
 component_dir = os.path.join(parent_dir, "canvas_component")
 interactive_canvas = components.declare_component("interactive_canvas", path=component_dir)
 
-# 2. 초기 세션 데이터 설정
-if "walls" not in st.session_state:
-    st.session_state.walls = {
-        "y_mid": 4.4,
-        "x_mid1": 5.0,
-        "x_mid2": 3.8,
-        "x_mid3": 7.5,
-        "y_bath": 6.4
-    }
+# 2. 기본 데이터 정의
+DEFAULT_WALLS = {
+    "y_mid": 4.4,
+    "x_mid1": 5.0,
+    "x_mid2": 3.8,
+    "x_mid3": 7.5,
+    "y_bath": 6.4
+}
 
-if "items" not in st.session_state:
-    st.session_state.items = [
-        {"id": "sofa", "name": "거실 소파", "x": 0.8, "y": 0.8, "w": 2.4, "l": 1.2, "h": 0.9, "rot": 0.0, "color": "#E74C3C"},
-        {"id": "tv", "name": "TV장", "x": 0.8, "y": 2.8, "w": 1.8, "l": 0.6, "h": 0.6, "rot": 0.0, "color": "#3498DB"},
-        {"id": "bed", "name": "안방 침대", "x": 5.5, "y": 0.8, "w": 2.0, "l": 2.0, "h": 1.1, "rot": 0.0, "color": "#9B59B6"},
-        {"id": "table", "name": "주방 식탁", "x": 4.2, "y": 4.8, "w": 1.8, "l": 1.1, "h": 0.8, "rot": 0.0, "color": "#F39C12"},
-        {"id": "fridge", "name": "냉장고", "x": 7.8, "y": 4.6, "w": 1.0, "l": 1.0, "h": 1.8, "rot": 0.0, "color": "#2ECC71"},
-        {"id": "desk", "name": "작은방 책상", "x": 0.8, "y": 4.8, "w": 1.4, "l": 0.9, "h": 0.75, "rot": 0.0, "color": "#1ABC9C"}
-    ]
+DEFAULT_ITEMS = [
+    {"id": "sofa", "name": "거실 소파", "x": 0.8, "y": 0.8, "w": 2.4, "l": 1.2, "h": 0.9, "rot": 0.0, "color": "#E74C3C"},
+    {"id": "tv", "name": "TV장", "x": 0.8, "y": 2.8, "w": 1.8, "l": 0.6, "h": 0.6, "rot": 0.0, "color": "#3498DB"},
+    {"id": "bed", "name": "안방 침대", "x": 5.5, "y": 0.8, "w": 2.0, "l": 2.0, "h": 1.1, "rot": 0.0, "color": "#9B59B6"},
+    {"id": "table", "name": "주방 식탁", "x": 4.2, "y": 4.8, "w": 1.8, "l": 1.1, "h": 0.8, "rot": 0.0, "color": "#F39C12"},
+    {"id": "fridge", "name": "냉장고", "x": 7.8, "y": 4.6, "w": 1.0, "l": 1.0, "h": 1.8, "rot": 0.0, "color": "#2ECC71"},
+    {"id": "desk", "name": "작은방 책상", "x": 0.8, "y": 4.8, "w": 1.4, "l": 0.9, "h": 0.75, "rot": 0.0, "color": "#1ABC9C"}
+]
 
-# 3. 페이지 상단 입력 컨트롤
+# 3. 세션 상태 자가 치유(Self-Reset) 검증
+if "walls" not in st.session_state or not isinstance(st.session_state.walls, dict):
+    st.session_state.walls = dict(DEFAULT_WALLS)
+
+if "items" not in st.session_state or not isinstance(st.session_state.items, list):
+    st.session_state.items = list(DEFAULT_ITEMS)
+
+# 4. 상단 입력 컨트롤
 st.title("🏡 AI 건축 평면도 & 3D 스마트 인테리어")
 
 col1, col2, col3 = st.columns(3)
@@ -50,23 +55,24 @@ st.write(f"🏠 **전체 주택 연면적:** `{house_w * house_l:.2f} m²` (약 
 st.markdown("---")
 st.subheader("🎮 2D 평면도 마우스 조작 편집기 (드래그 시 3D 모델에 실시간 반영)")
 
-# JSON 직렬화 오류 방지를 위한 타입 정제 함수
+# 타입 정제 (JSON 변환 호환성 보장)
 clean_walls = {str(k): float(v) for k, v in st.session_state.walls.items()}
 clean_items = []
 for it in st.session_state.items:
-    clean_items.append({
-        "id": str(it["id"]),
-        "name": str(it["name"]),
-        "x": float(it["x"]),
-        "y": float(it["y"]),
-        "w": float(it["w"]),
-        "l": float(it["l"]),
-        "h": float(it.get("h", 0.8)),
-        "rot": float(it.get("rot", 0.0)),
-        "color": str(it["color"])
-    })
+    if isinstance(it, dict):
+        clean_items.append({
+            "id": str(it.get("id", "item")),
+            "name": str(it.get("name", "가구")),
+            "x": float(it.get("x", 0.0)),
+            "y": float(it.get("y", 0.0)),
+            "w": float(it.get("w", 1.0)),
+            "l": float(it.get("l", 1.0)),
+            "h": float(it.get("h", 0.8)),
+            "rot": float(it.get("rot", 0.0)),
+            "color": str(it.get("color", "#4D96FF"))
+        })
 
-# 4. 2D 평면도 캔버스 컴포넌트 실행
+# 5. 2D 평면도 캔버스 컴포넌트 호출
 canvas_data = interactive_canvas(
     house_w=house_w,
     house_l=house_l,
@@ -75,7 +81,7 @@ canvas_data = interactive_canvas(
     key="interactive_floorplan"
 )
 
-# 5. 2D에서 데이터 수신 시 세션 상태 업데이트
+# 6. 컴포넌트 반응 데이터 연동
 if canvas_data and isinstance(canvas_data, dict):
     if "walls" in canvas_data and isinstance(canvas_data["walls"], dict):
         for wk, wv in canvas_data["walls"].items():
@@ -83,14 +89,15 @@ if canvas_data and isinstance(canvas_data, dict):
             
     if "items" in canvas_data and isinstance(canvas_data["items"], list):
         for updated_it in canvas_data["items"]:
-            for original_it in st.session_state.items:
-                if str(original_it["id"]) == str(updated_it.get("id")):
-                    original_it["x"] = float(updated_it["x"])
-                    original_it["y"] = float(updated_it["y"])
-                    original_it["rot"] = float(updated_it.get("rot", 0.0))
+            if isinstance(updated_it, dict):
+                for original_it in st.session_state.items:
+                    if isinstance(original_it, dict) and str(original_it.get("id")) == str(updated_it.get("id")):
+                        original_it["x"] = float(updated_it.get("x", original_it["x"]))
+                        original_it["y"] = float(updated_it.get("y", original_it["y"]))
+                        original_it["rot"] = float(updated_it.get("rot", original_it.get("rot", 0.0)))
 
 # --------------------------------------------------------------------------
-# 6. 3D 입체 모델 생성 (2D와 1:1 동일한 내벽 및 가구 위치 반영)
+# 7. 3D 입체 시각화 (Plotly)
 # --------------------------------------------------------------------------
 st.markdown("---")
 st.subheader("🏗️ 3D 입체 건축 평면도 시각화 (실시간 반영)")
@@ -143,18 +150,19 @@ fig.add_trace(create_wall_3d(w["x_mid2"], w["y_mid"], w["x_mid2"], house_l, wall
 fig.add_trace(create_wall_3d(w["x_mid3"], w["y_mid"], w["x_mid3"], house_l, wall_h))
 fig.add_trace(create_wall_3d(w["x_mid3"], w["y_bath"], house_w, w["y_bath"], wall_h))
 
-# 3D 가구 (2D와 1:1 대응)
+# 3D 가구 (2D와 1:1 동기화)
 for item in st.session_state.items:
-    fig.add_trace(create_box_3d(
-        x=float(item["x"]),
-        y=float(item["y"]),
-        z=0.05,
-        w=float(item["w"]),
-        l=float(item["l"]),
-        h=float(item.get("h", 0.8)),
-        color=str(item["color"]),
-        name=str(item["name"])
-    ))
+    if isinstance(item, dict):
+        fig.add_trace(create_box_3d(
+            x=float(item.get("x", 0.0)),
+            y=float(item.get("y", 0.0)),
+            z=0.05,
+            w=float(item.get("w", 1.0)),
+            l=float(item.get("l", 1.0)),
+            h=float(item.get("h", 0.8)),
+            color=str(item.get("color", "#4D96FF")),
+            name=str(item.get("name", "가구"))
+        ))
 
 fig.update_layout(
     scene=dict(
