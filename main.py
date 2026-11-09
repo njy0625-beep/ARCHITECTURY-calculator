@@ -3,6 +3,7 @@ import streamlit.components.v1 as components
 import plotly.graph_objects as go
 import json
 import math
+import os
 
 # -------------------------------------------------------------
 # 1. 페이지 레이아웃 및 기본 설정
@@ -10,9 +11,14 @@ import math
 st.set_page_config(page_title="AI 3D 복층 정밀 건축 & 스마트 공간 최적화", page_icon="🏛️", layout="wide")
 
 st.title("🏛️ AI 기반 3D 정밀 건축 평면도 & 스마트 공간 최적화 배치 시스템")
-st.caption("2D 평면도 시각화 | 가구 X/Y 좌표 및 360도 회전 실시간 조정 | 3D 모델 100% 즉시 자동 반영")
+st.caption("2D 평면도 마우스 직접 드래그 이동 & 360도 회전 | 마우스 릴리즈 즉시 3D 실시간 100% 동기화")
 
 st.divider()
+
+# 커스텀 2D 캔버스 양방향 컴포넌트 선언
+parent_dir = os.path.dirname(os.path.abspath(__file__))
+component_dir = os.path.join(parent_dir, "canvas_component")
+interactive_canvas = components.declare_component("interactive_canvas", path=component_dir)
 
 # -------------------------------------------------------------
 # 2. 안전한 형변환 및 헬퍼 함수
@@ -171,55 +177,33 @@ try:
         apply_ai_smart_layout()
 
     # -------------------------------------------------------------
-    # 5. 🎮 [실시간 스마트 가구 & 벽체 조종 컨트롤러]
+    # 5. 🎮 [2D 마우스 반응형 대화형 캔버스 컴포넌트]
     # -------------------------------------------------------------
-    st.subheader("🎮 실시간 가구 및 내벽 즉시 조종 편집기")
-    
-    top_col1, top_col2 = st.columns([1, 1])
-    with top_col1:
+    st.subheader("🎮 2D 평면도 마우스 조작 편집기 (드래그 시 3D 모델에 실시간 반영)")
+
+    ctrl_col1, ctrl_col2 = st.columns([1, 1])
+    with ctrl_col1:
         if st.button("✨ AI 기반 인간공학 자동 공간 최적화 재배치", use_container_width=True):
             apply_ai_smart_layout()
             st.success("🤖 각 방별 동선과 치수에 맞춰 가구를 자동 최적화 배치했습니다!")
             st.rerun()
 
-    item_names = [it["name"] for it in st.session_state.custom_items]
-    
-    ctrl_expander = st.expander("🛠️ **실시간 가구 위치 및 회전(0~360°) 조절 패널**", expanded=True)
-    with ctrl_expander:
-        col_sel, col_x, col_y, col_rot = st.columns([2.5, 2.5, 2.5, 2.5])
-        with col_sel:
-            selected_item_name = st.selectbox("🎯 조작할 가구 선택:", item_names, index=0)
-        
-        sel_idx = next((i for i, item in enumerate(st.session_state.custom_items) if item["name"] == selected_item_name), 0)
-        target_item = st.session_state.custom_items[sel_idx]
-        
-        with col_x:
-            new_x = st.slider("X 위치 (m):", min_value=0.0, max_value=float(house_w - target_item["w"]), 
-                              value=safe_float(target_item.get("abs_x", 0.0)), step=0.1, key=f"sl_x_{sel_idx}")
-        with col_y:
-            new_y = st.slider("Y 위치 (m):", min_value=0.0, max_value=float(house_l - target_item["l"]), 
-                              value=safe_float(target_item.get("abs_y", 0.0)), step=0.1, key=f"sl_y_{sel_idx}")
-        with col_rot:
-            new_rot = st.slider("360도 회전각 (°):", min_value=0, max_value=360, 
-                                value=safe_int(target_item.get("rot", 0)), step=5, key=f"sl_rot_{sel_idx}")
-            
-        st.session_state.custom_items[sel_idx]["abs_x"] = new_x
-        st.session_state.custom_items[sel_idx]["abs_y"] = new_y
-        st.session_state.custom_items[sel_idx]["rot"] = new_rot
-
-    # -------------------------------------------------------------
-    # 5.5. 2D 평면도 시각화 캔버스
-    # -------------------------------------------------------------
-    canvas_items_json = []
+    canvas_items_data = []
     for idx, item in enumerate(st.session_state.custom_items):
-        canvas_items_json.append({
-            "id": idx, "name": item["name"], "room": item["room"],
-            "x": safe_float(item.get("abs_x", 1.0)), "y": safe_float(item.get("abs_y", 1.0)),
-            "w": safe_float(item["w"]), "l": safe_float(item["l"]), "color": item["color"],
-            "rot": safe_int(item.get("rot", 0)), "is_base": (item["base_item"] == "바닥 (z=0)")
+        canvas_items_data.append({
+            "id": idx,
+            "name": item["name"],
+            "room": item["room"],
+            "x": safe_float(item.get("abs_x", 1.0)),
+            "y": safe_float(item.get("abs_y", 1.0)),
+            "w": safe_float(item["w"]),
+            "l": safe_float(item["l"]),
+            "color": item["color"],
+            "rot": safe_int(item.get("rot", 0)),
+            "is_base": (item["base_item"] == "바닥 (z=0)")
         })
 
-    wall_data_json = {
+    wall_data = {
         "y_mid": safe_float(y_mid),
         "x_mid1": safe_float(x_mid1),
         "x_mid2": safe_float(x_mid2),
@@ -227,127 +211,68 @@ try:
         "y_bath": safe_float(y_bath)
     }
 
-    drag_canvas_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <meta charset="utf-8">
-    <style>
-        body {{ font-family: 'Noto Sans KR', sans-serif; margin: 0; padding: 5px; background-color: #f8f9fa; }}
-        #canvas-container {{ position: relative; width: 100%; text-align: center; }}
-        canvas {{ border: 3px solid #343a40; background: #ffffff; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); }}
-        .guide-banner {{ background: #e7f5ff; border: 1px solid #a5d8ff; padding: 8px; border-radius: 6px; font-size: 13px; color: #1864ab; font-weight: bold; margin-bottom: 6px; }}
-    </style>
-    </head>
-    <body>
-    <div id="canvas-container">
-        <div class="guide-banner">
-            💡 <b>2D 정밀 실시간 평면도 현황</b> (위 조종 패널 조작 시 2D 평면도와 하단 3D 모델이 100% 즉시 반영됩니다)
-        </div>
-        <canvas id="floorCanvas" width="900" height="600"></canvas>
-    </div>
-    <script>
-        const canvas = document.getElementById('floorCanvas');
-        const ctx = canvas.getContext('2d');
+    # 양방향 커스텀 캔버스 실행
+    canvas_result = interactive_canvas(
+        house_w=house_w,
+        house_l=house_l,
+        walls=wall_data,
+        items=canvas_items_data,
+        key="interactive_floorplan_canvas"
+    )
 
-        const houseW = {house_w};
-        const houseL = {house_l};
+    # 캔버스에서 마우스 드래그 완료 후 반환 데이터 수신 처리
+    if canvas_result and isinstance(canvas_result, dict):
+        res_walls = canvas_result.get("walls", {})
+        if res_walls:
+            w_updated = False
+            if "y_mid" in res_walls and res_walls["y_mid"] != st.session_state.y_mid:
+                st.session_state.y_mid = res_walls["y_mid"]
+                w_updated = True
+            if "x_mid1" in res_walls and res_walls["x_mid1"] != st.session_state.x_mid1:
+                st.session_state.x_mid1 = res_walls["x_mid1"]
+                w_updated = True
+            if "x_mid2" in res_walls and res_walls["x_mid2"] != st.session_state.x_mid2:
+                st.session_state.x_mid2 = res_walls["x_mid2"]
+                w_updated = True
+            if "x_mid3" in res_walls and res_walls["x_mid3"] != st.session_state.x_mid3:
+                st.session_state.x_mid3 = res_walls["x_mid3"]
+                w_updated = True
+            if "y_bath" in res_walls and res_walls["y_bath"] != st.session_state.y_bath:
+                st.session_state.y_bath = res_walls["y_bath"]
+                w_updated = True
 
-        const scale = 75; // 1m = 75px
-        const originX = 60;
-        const originY = 50;
+        res_items = canvas_result.get("items", [])
+        items_updated = False
+        for it in res_items:
+            s_id = it.get("id", -1)
+            if 0 <= s_id < len(st.session_state.custom_items):
+                cur = st.session_state.custom_items[s_id]
+                nx, ny, nrot = it.get("x"), it.get("y"), it.get("rot")
+                if nx != cur.get("abs_x") or ny != cur.get("abs_y") or nrot != cur.get("rot"):
+                    cur["abs_x"] = nx
+                    cur["abs_y"] = ny
+                    cur["rot"] = nrot
+                    items_updated = True
 
-        let walls = {json.dumps(wall_data_json)};
-        let items = {json.dumps(canvas_items_json)};
+        if w_updated or items_updated:
+            st.rerun()
 
-        function getRooms() {{
-            return [
-                {{ name: "거실", x: 0, y: 0, w: walls.x_mid1, l: walls.y_mid, color: "#FAFAFA" }},
-                {{ name: "안방", x: walls.x_mid1, y: 0, w: houseW - walls.x_mid1, l: walls.y_mid, color: "#F3E5F5" }},
-                {{ name: "작은방", x: 0, y: walls.y_mid, w: walls.x_mid2, l: houseL - walls.y_mid, color: "#E1F5FE" }},
-                {{ name: "주방/식당", x: walls.x_mid2, y: walls.y_mid, w: Math.max(0.1, walls.x_mid3 - walls.x_mid2), l: houseL - walls.y_mid, color: "#FFF3E0" }},
-                {{ name: "욕실/화장실", x: walls.x_mid3, y: walls.y_mid, w: houseW - walls.x_mid3, l: Math.max(0.1, walls.y_bath - walls.y_mid), color: "#E0F7FA" }},
-                {{ name: "현관", x: walls.x_mid3, y: walls.y_bath, w: houseW - walls.x_mid3, l: houseL - walls.y_bath, color: "#E8EAF6" }}
-            ];
-        }}
+    # 최신화된 파라미터 재동기화
+    y_mid = safe_float(st.session_state.y_mid, house_l * 0.55)
+    x_mid1 = safe_float(st.session_state.x_mid1, house_w * 0.5)
+    x_mid2 = safe_float(st.session_state.x_mid2, house_w * 0.38)
+    x_mid3 = safe_float(st.session_state.x_mid3, house_w * 0.75)
+    y_bath = safe_float(st.session_state.y_bath, house_l * 0.80)
 
-        function draw() {{
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            const roomsList = getRooms();
-
-            roomsList.forEach(r => {{
-                let rx = originX + r.x * scale;
-                let ry = originY + r.y * scale;
-                let rw = r.w * scale;
-                let rl = r.l * scale;
-
-                ctx.fillStyle = r.color;
-                ctx.fillRect(rx, ry, rw, rl);
-                ctx.strokeStyle = "#adb5bd";
-                ctx.lineWidth = 1;
-                ctx.strokeRect(rx, ry, rw, rl);
-
-                ctx.fillStyle = "#495057";
-                ctx.font = "bold 13px sans-serif";
-                ctx.fillText(r.name, rx + 8, ry + 20);
-            }});
-
-            ctx.strokeStyle = "#212529";
-            ctx.lineWidth = 6;
-            ctx.strokeRect(originX, originY, houseW * scale, houseL * scale);
-
-            drawWallLine(originX, originY + walls.y_mid * scale, originX + houseW * scale, originY + walls.y_mid * scale);
-            drawWallLine(originX + walls.x_mid1 * scale, originY, originX + walls.x_mid1 * scale, originY + walls.y_mid * scale);
-            drawWallLine(originX + walls.x_mid2 * scale, originY + walls.y_mid * scale, originX + walls.x_mid2 * scale, originY + houseL * scale);
-            drawWallLine(originX + walls.x_mid3 * scale, originY + walls.y_mid * scale, originX + walls.x_mid3 * scale, originY + houseL * scale);
-            drawWallLine(originX + walls.x_mid3 * scale, originY + walls.y_bath * scale, originX + houseW * scale, originY + walls.y_bath * scale);
-
-            items.forEach(item => {{
-                if (!item.is_base) return;
-                
-                let cx = originX + (item.x + item.w / 2) * scale;
-                let cy = originY + (item.y + item.l / 2) * scale;
-                let iw = item.w * scale;
-                let il = item.l * scale;
-
-                ctx.save();
-                ctx.translate(cx, cy);
-                ctx.rotate((item.rot || 0) * Math.PI / 180);
-
-                ctx.fillStyle = item.color;
-                ctx.fillRect(-iw/2, -il/2, iw, il);
-                ctx.strokeStyle = "#000000";
-                ctx.lineWidth = 1.5;
-                ctx.strokeRect(-iw/2, -il/2, iw, il);
-
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "bold 11px sans-serif";
-                ctx.shadowColor = "black";
-                ctx.shadowBlur = 3;
-                ctx.fillText(item.name.substring(0, 8), -iw/2 + 3, 4);
-                ctx.shadowBlur = 0;
-
-                ctx.restore();
-            }});
-        }}
-
-        function drawWallLine(x1, y1, x2, y2) {{
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.lineWidth = 5;
-            ctx.strokeStyle = "#495057";
-            ctx.stroke();
-        }}
-
-        draw();
-    </script>
-    </body>
-    </html>
-    """
-
-    components.html(drag_canvas_html, height=670)
+    rooms_1f = {
+        "[1층] 거실 (Living Room)": {"x0": 0, "y0": 0, "w": x_mid1, "l": y_mid, "color": "#FAFAFA", "z": 0},
+        "[1층] 안방 (Master Bedroom)": {"x0": x_mid1, "y0": 0, "w": house_w - x_mid1, "l": y_mid, "color": "#F3E5F5", "z": 0},
+        "[1층] 작은방 (Bedroom 2)": {"x0": 0, "y0": y_mid, "w": x_mid2, "l": house_l - y_mid, "color": "#E1F5FE", "z": 0},
+        "[1층] 주방/식당 (Kitchen)": {"x0": x_mid2, "y0": y_mid, "w": max(0.5, x_mid3 - x_mid2), "l": house_l - y_mid, "color": "#FFF3E0", "z": 0},
+        "[1층] 욕실/화장실 (Bathroom)": {"x0": x_mid3, "y0": y_mid, "w": house_w - x_mid3, "l": max(0.5, y_bath - y_mid), "color": "#E0F7FA", "z": 0},
+        "[1층] 현관 (Entrance)": {"x0": x_mid3, "y0": y_bath, "w": house_w - x_mid3, "l": house_l - y_bath, "color": "#E8EAF6", "z": 0}
+    }
+    all_rooms = {**rooms_1f, **rooms_2f}
 
     st.divider()
 
@@ -394,7 +319,7 @@ try:
     fig.add_trace(create_3d_rotated_box(x_mid3 - wall_th/2, y_bath, 0, wall_th, house_l - y_bath, house_h*0.85, 0, "#9E9E9E", "현관 내벽"))
     fig.add_trace(create_3d_rotated_box(x_mid3, y_bath - wall_th/2, 0, house_w - x_mid3, wall_th, house_h*0.85, 0, "#9E9E9E", "현관 경계벽"))
 
-    # 3) 가구 3D 배치
+    # 3) 가구 3D 배치 (동기화 반영)
     placed_coords = {}
     valid_items = [item for item in st.session_state.custom_items if item["room"] in all_rooms]
 
