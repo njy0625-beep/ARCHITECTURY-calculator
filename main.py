@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 
 st.set_page_config(page_title="AI 건축 평면도 & 3D 스마트 인테리어", layout="wide")
 
-# 1. 2D 커스텀 컴포넌트 불러오기
+# 1. 2D 커스텀 컴포넌트 로드
 parent_dir = os.path.dirname(os.path.abspath(__file__))
 component_dir = os.path.join(parent_dir, "canvas_component")
 interactive_canvas = components.declare_component("interactive_canvas", path=component_dir)
@@ -28,14 +28,29 @@ DEFAULT_ITEMS = [
     {"id": "desk", "name": "작은방 책상", "x": 0.8, "y": 4.8, "w": 1.4, "l": 0.9, "h": 0.75, "rot": 0.0, "color": "#1ABC9C"}
 ]
 
-# 3. 세션 상태 자가 치유(Self-Reset) 검증
-if "walls" not in st.session_state or not isinstance(st.session_state.walls, dict):
-    st.session_state.walls = dict(DEFAULT_WALLS)
+# 3. 새로운 세션 키(floorplan_items, floorplan_walls)를 사용하여 캐시 오류 우회
+if "floorplan_walls" not in st.session_state or not isinstance(st.session_state["floorplan_walls"], dict):
+    st.session_state["floorplan_walls"] = dict(DEFAULT_WALLS)
 
-if "items" not in st.session_state or not isinstance(st.session_state.items, list):
-    st.session_state.items = list(DEFAULT_ITEMS)
+if "floorplan_items" not in st.session_state or not isinstance(st.session_state["floorplan_items"], list):
+    st.session_state["floorplan_items"] = list(DEFAULT_ITEMS)
 
-# 4. 상단 입력 컨트롤
+# 안전한 세션 데이터 추출 함수
+def get_safe_items():
+    raw = st.session_state.get("floorplan_items")
+    if not isinstance(raw, list):
+        st.session_state["floorplan_items"] = list(DEFAULT_ITEMS)
+        return DEFAULT_ITEMS
+    return raw
+
+def get_safe_walls():
+    raw = st.session_state.get("floorplan_walls")
+    if not isinstance(raw, dict):
+        st.session_state["floorplan_walls"] = dict(DEFAULT_WALLS)
+        return DEFAULT_WALLS
+    return raw
+
+# 4. 상단 컨트롤 UI
 st.title("🏡 AI 건축 평면도 & 3D 스마트 인테리어")
 
 col1, col2, col3 = st.columns(3)
@@ -55,10 +70,13 @@ st.write(f"🏠 **전체 주택 연면적:** `{house_w * house_l:.2f} m²` (약 
 st.markdown("---")
 st.subheader("🎮 2D 평면도 마우스 조작 편집기 (드래그 시 3D 모델에 실시간 반영)")
 
-# 타입 정제 (JSON 변환 호환성 보장)
-clean_walls = {str(k): float(v) for k, v in st.session_state.walls.items()}
+# 안전한 데이터 정제
+current_walls = get_safe_walls()
+current_items = get_safe_items()
+
+clean_walls = {str(k): float(v) for k, v in current_walls.items()}
 clean_items = []
-for it in st.session_state.items:
+for it in current_items:
     if isinstance(it, dict):
         clean_items.append({
             "id": str(it.get("id", "item")),
@@ -72,7 +90,7 @@ for it in st.session_state.items:
             "color": str(it.get("color", "#4D96FF"))
         })
 
-# 5. 2D 평면도 캔버스 컴포넌트 호출
+# 5. 2D 평면도 컴포넌트 호출
 canvas_data = interactive_canvas(
     house_w=house_w,
     house_l=house_l,
@@ -81,16 +99,16 @@ canvas_data = interactive_canvas(
     key="interactive_floorplan"
 )
 
-# 6. 컴포넌트 반응 데이터 연동
+# 6. 컴포넌트 수신 데이터 동기화
 if canvas_data and isinstance(canvas_data, dict):
     if "walls" in canvas_data and isinstance(canvas_data["walls"], dict):
         for wk, wv in canvas_data["walls"].items():
-            st.session_state.walls[wk] = float(wv)
+            st.session_state["floorplan_walls"][wk] = float(wv)
             
     if "items" in canvas_data and isinstance(canvas_data["items"], list):
         for updated_it in canvas_data["items"]:
             if isinstance(updated_it, dict):
-                for original_it in st.session_state.items:
+                for original_it in st.session_state["floorplan_items"]:
                     if isinstance(original_it, dict) and str(original_it.get("id")) == str(updated_it.get("id")):
                         original_it["x"] = float(updated_it.get("x", original_it["x"]))
                         original_it["y"] = float(updated_it.get("y", original_it["y"]))
@@ -143,7 +161,7 @@ fig.add_trace(create_wall_3d(house_w, 0, house_w, house_l, wall_h))
 fig.add_trace(create_wall_3d(0, house_l, house_w, house_l, wall_h))
 
 # 3D 내벽
-w = st.session_state.walls
+w = get_safe_walls()
 fig.add_trace(create_wall_3d(0, w["y_mid"], house_w, w["y_mid"], wall_h))
 fig.add_trace(create_wall_3d(w["x_mid1"], 0, w["x_mid1"], w["y_mid"], wall_h))
 fig.add_trace(create_wall_3d(w["x_mid2"], w["y_mid"], w["x_mid2"], house_l, wall_h))
@@ -151,7 +169,7 @@ fig.add_trace(create_wall_3d(w["x_mid3"], w["y_mid"], w["x_mid3"], house_l, wall
 fig.add_trace(create_wall_3d(w["x_mid3"], w["y_bath"], house_w, w["y_bath"], wall_h))
 
 # 3D 가구 (2D와 1:1 동기화)
-for item in st.session_state.items:
+for item in get_safe_items():
     if isinstance(item, dict):
         fig.add_trace(create_box_3d(
             x=float(item.get("x", 0.0)),
