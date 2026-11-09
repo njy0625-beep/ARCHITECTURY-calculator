@@ -4,24 +4,23 @@
     <meta charset="utf-8">
     <script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@1.4.0/dist/streamlit-component-lib.js"></script>
     <style>
+        * { box-sizing: border-box; }
         body { font-family: 'Noto Sans KR', sans-serif; margin: 0; padding: 5px; background-color: #f8f9fa; user-select: none; }
-        #canvas-container { position: relative; width: 100%; text-align: center; }
-        canvas { border: 3px solid #343a40; background: #ffffff; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); cursor: pointer; max-width: 100%; height: auto; }
-        .status-bar { margin-top: 8px; padding: 10px; background: #212529; color: #f8f9fa; border-radius: 6px; font-weight: bold; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
-        .guide-banner { background: #e7f5ff; border: 1px solid #a5d8ff; padding: 8px; border-radius: 6px; font-size: 13px; color: #1864ab; font-weight: bold; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
-        .badge { background-color: #d4edda; color: #155724; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-left: 4px; border: 1px solid #c3e6cb; }
+        #canvas-container { width: 100%; text-align: center; background: #ffffff; border-radius: 12px; padding: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        canvas { border: 3px solid #343a40; background: #ffffff; border-radius: 8px; cursor: pointer; max-width: 100%; height: auto; display: block; margin: 0 auto; }
+        .guide-banner { background: #e7f5ff; border: 1px solid #a5d8ff; padding: 8px 12px; border-radius: 6px; font-size: 13px; color: #1864ab; font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .status-bar { margin-top: 8px; padding: 10px; background: #212529; color: #f8f9fa; border-radius: 6px; font-weight: bold; font-size: 13px; }
+        .badge { background-color: #d4edda; color: #155724; padding: 2px 8px; border-radius: 12px; font-size: 11px; border: 1px solid #c3e6cb; }
     </style>
 </head>
 <body>
 <div id="canvas-container">
     <div class="guide-banner">
         <div>💡 <b>마우스 직관 조작:</b> <b>내벽선</b> 드래그로 방 크기 조정 | <b>가구</b> 드래그 이동 | <b>'R'키 + 휠</b> 360도 회전</div>
-        <div><span class="badge">⚡ 드래그 완료 시 3D 실시간 자동 연동</span></div>
+        <div><span class="badge">⚡ 3D 모델 실시간 자동 연동</span></div>
     </div>
-    <canvas id="floorCanvas" width="900" height="620"></canvas>
-    <div class="status-bar">
-        <span id="statusText">🎮 평면도 내 가구와 벽체를 마우스로 잡고 자유롭게 이동해보세요!</span>
-    </div>
+    <canvas id="floorCanvas" width="880" height="560"></canvas>
+    <div class="status-bar" id="statusText">🎮 평면도 내 가구와 벽체를 마우스로 잡고 자유롭게 이동해보세요!</div>
 </div>
 
 <script>
@@ -34,9 +33,9 @@
     const ctx = canvas.getContext('2d');
     const statusText = document.getElementById('statusText');
 
-    const scale = 75;
-    const originX = 60;
-    const originY = 50;
+    const scale = 72;
+    const originX = 50;
+    const originY = 40;
 
     let selectedItem = null;
     let activeWall = null;
@@ -47,17 +46,19 @@
     let rotTimer = null;
 
     function onRender(event) {
-        if (!event.detail || !event.detail.args) return;
-        const args = event.detail.args;
-        houseW = args.house_w || 10.0;
-        houseL = args.house_l || 8.0;
+        if (window.Streamlit) Streamlit.setFrameHeight(680);
         
-        if (!isDragging) {
-            walls = Object.assign({}, args.walls || {});
-            items = JSON.parse(JSON.stringify(args.items || []));
-            draw();
+        if (event.detail && event.detail.args) {
+            const args = event.detail.args;
+            houseW = args.house_w || 10.0;
+            houseL = args.house_l || 8.0;
+            
+            if (!isDragging) {
+                walls = Object.assign({}, args.walls || {});
+                items = JSON.parse(JSON.stringify(args.items || []));
+                draw();
+            }
         }
-        if (window.Streamlit) Streamlit.setFrameHeight(720);
     }
 
     function sendToStreamlit() {
@@ -126,7 +127,7 @@
         drawWallLine("x_mid1", originX + walls.x_mid1 * scale, originY, originX + walls.x_mid1 * scale, originY + walls.y_mid * scale);
         drawWallLine("x_mid2", originX + walls.x_mid2 * scale, originY + walls.y_mid * scale, originX + walls.x_mid2 * scale, originY + houseL * scale);
         drawWallLine("x_mid3", originX + walls.x_mid3 * scale, originY + walls.y_mid * scale, originX + walls.x_mid3 * scale, originY + houseL * scale);
-        drawWallLine("y_bath", originX + walls.x_mid3 * scale, originY + walls.y_bath * scale, originX + houseW * scale, originY + walls.y_bath * scale);
+        drawWallLine("y_bath", originX + walls.x_mid3 * scale, originY + walls.y_bath * scale, originX + houseW * scale, originY + houseL * scale);
 
         items.forEach(item => {
             if (!item.is_base) return;
@@ -324,21 +325,19 @@
         }
     }, { passive: false });
 
-    function initComponent() {
-        if (window.Streamlit) {
-            Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
-            Streamlit.setComponentReady();
-            Streamlit.setFrameHeight(720);
+    // Streamlit 통신 준비 대기 함수 (폴링 처리)
+    function startStreamlitComponent() {
+        if (!window.Streamlit) {
+            setTimeout(startStreamlitComponent, 50);
+            return;
         }
+        Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
+        Streamlit.setComponentReady();
+        Streamlit.setFrameHeight(680);
+        draw();
     }
 
-    if (document.readyState === "complete" || document.readyState === "interactive") {
-        initComponent();
-    } else {
-        window.addEventListener("DOMContentLoaded", initComponent);
-    }
-
-    draw();
+    startStreamlitComponent();
 </script>
 </body>
 </html>
