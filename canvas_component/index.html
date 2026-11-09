@@ -24,7 +24,7 @@
 
 <script>
     // -------------------------------------------------------------
-    // Streamlit 커스텀 컴포넌트 내장 프로토콜 (외부 CDN 차단 100% 방지)
+    // Streamlit 커스텀 컴포넌트 내장 프로토콜
     // -------------------------------------------------------------
     (function() {
         if (!window.Streamlit) {
@@ -55,7 +55,16 @@
     let houseW = 10.0;
     let houseL = 8.0;
     let walls = { y_mid: 4.4, x_mid1: 5.0, x_mid2: 3.8, x_mid3: 7.5, y_bath: 6.4 };
-    let items = [];
+    
+    // 기본 가구 배치 (Streamlit 데이터 수신 시 업데이트)
+    let items = [
+        { id: "sofa", name: "거실 소파", x: 0.8, y: 0.8, w: 2.4, l: 1.2, color: "#E74C3C" },
+        { id: "tv", name: "TV장", x: 0.8, y: 2.8, w: 1.8, l: 0.6, color: "#3498DB" },
+        { id: "bed", name: "안방 침대", x: 5.5, y: 0.8, w: 2.0, l: 2.0, color: "#9B59B6" },
+        { id: "table", name: "주방 식탁", x: 4.2, y: 4.8, w: 1.8, l: 1.1, color: "#F39C12" },
+        { id: "fridge", name: "냉장고", x: 7.8, y: 4.6, w: 1.0, l: 1.0, color: "#2ECC71" },
+        { id: "desk", name: "작은방 책상", x: 0.8, y: 4.8, w: 1.4, l: 0.9, color: "#1ABC9C" }
+    ];
 
     const canvas = document.getElementById('floorCanvas');
     const ctx = canvas.getContext('2d');
@@ -81,17 +90,19 @@
             houseW = args.house_w || 10.0;
             houseL = args.house_l || 8.0;
             
-            if (!isDragging) {
-                walls = Object.assign({}, args.walls || {});
-                items = JSON.parse(JSON.stringify(args.items || []));
-                draw();
+            if (args.walls) {
+                walls = Object.assign({}, args.walls);
             }
+            if (args.items && args.items.length > 0 && !isDragging) {
+                items = JSON.parse(JSON.stringify(args.items));
+            }
+            draw();
         }
     }
 
     function sendToStreamlit() {
         const itemStates = items.map(it => ({
-            id: it.id,
+            id: it.id || it.name,
             x: parseFloat(it.x.toFixed(2)),
             y: parseFloat(it.y.toFixed(2)),
             rot: it.rot || 0
@@ -130,6 +141,7 @@
 
         const roomsList = getRooms();
 
+        // 1. 방 구역 그리기
         roomsList.forEach(r => {
             let rx = originX + r.x * scale;
             let ry = originY + r.y * scale;
@@ -147,28 +159,33 @@
             ctx.fillText(r.name, rx + 8, ry + 20);
         });
 
+        // 2. 외벽선
         ctx.strokeStyle = "#212529";
         ctx.lineWidth = 6;
         ctx.strokeRect(originX, originY, houseW * scale, houseL * scale);
 
+        // 3. 내벽선
         drawWallLine("y_mid", originX, originY + walls.y_mid * scale, originX + houseW * scale, originY + walls.y_mid * scale);
         drawWallLine("x_mid1", originX + walls.x_mid1 * scale, originY, originX + walls.x_mid1 * scale, originY + walls.y_mid * scale);
         drawWallLine("x_mid2", originX + walls.x_mid2 * scale, originY + walls.y_mid * scale, originX + walls.x_mid2 * scale, originY + houseL * scale);
         drawWallLine("x_mid3", originX + walls.x_mid3 * scale, originY + walls.y_mid * scale, originX + walls.x_mid3 * scale, originY + houseL * scale);
         drawWallLine("y_bath", originX + walls.x_mid3 * scale, originY + walls.y_bath * scale, originX + houseW * scale, originY + houseL * scale);
 
+        // 4. 가구 그리기
         items.forEach(item => {
-            if (!item.is_base) return;
-            
-            let cx = originX + (item.x + item.w / 2) * scale;
-            let cy = originY + (item.y + item.l / 2) * scale;
-            let iw = item.w * scale;
-            let il = item.l * scale;
+            let iw = (item.w || item.width || 1.5) * scale;
+            let il = (item.l || item.length || 1.5) * scale;
+            let itemColor = item.color || "#4D96FF";
+            let itemName = item.name || "가구";
+
+            let cx = originX + (item.x + (item.w || 1.5) / 2) * scale;
+            let cy = originY + (item.y + (item.l || 1.5) / 2) * scale;
 
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate((item.rot || 0) * Math.PI / 180);
 
+            // 선택 강조 테두리
             if (item === selectedItem) {
                 ctx.fillStyle = "rgba(255, 193, 7, 0.45)";
                 ctx.fillRect(-iw/2 - 6, -il/2 - 6, iw + 12, il + 12);
@@ -177,17 +194,21 @@
                 ctx.strokeRect(-iw/2 - 6, -il/2 - 6, iw + 12, il + 12);
             }
 
-            ctx.fillStyle = item.color;
+            // 가구 본체
+            ctx.fillStyle = itemColor;
             ctx.fillRect(-iw/2, -il/2, iw, il);
-            ctx.strokeStyle = "#000000";
-            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = "#1A252C";
+            ctx.lineWidth = 2;
             ctx.strokeRect(-iw/2, -il/2, iw, il);
 
+            // 가구 명칭
             ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 11px sans-serif";
-            ctx.shadowColor = "black";
-            ctx.shadowBlur = 3;
-            ctx.fillText(item.name.substring(0, 8), -iw/2 + 3, 4);
+            ctx.font = "bold 12px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.shadowColor = "rgba(0,0,0,0.8)";
+            ctx.shadowBlur = 4;
+            ctx.fillText(itemName.substring(0, 10), 0, 0);
             ctx.shadowBlur = 0;
 
             ctx.restore();
@@ -245,14 +266,13 @@
             return;
         }
 
+        // 가구 드래그 선택 감지
         for (let i = items.length - 1; i >= 0; i--) {
             let item = items[i];
-            if (!item.is_base) continue;
-            
+            let iw = (item.w || 1.5) * scale;
+            let il = (item.l || 1.5) * scale;
             let ix = originX + item.x * scale;
             let iy = originY + item.y * scale;
-            let iw = item.w * scale;
-            let il = item.l * scale;
 
             if (mx >= ix && mx <= ix + iw && my >= iy && my <= iy + il) {
                 selectedItem = item;
@@ -260,7 +280,7 @@
                 isDragging = true;
                 dragOffsetX = mx - ix;
                 dragOffsetY = my - iy;
-                statusText.innerHTML = "🎯 선택된 가구: <b>" + item.name + "</b> (회전: " + (item.rot||0) + "°)";
+                statusText.innerHTML = "🎯 선택된 가구: <b>" + (item.name || "가구") + "</b> (회전: " + (item.rot||0) + "°)";
                 draw();
                 return;
             }
@@ -311,13 +331,15 @@
         }
 
         if (selectedItem) {
+            let itemW = selectedItem.w || 1.5;
+            let itemL = selectedItem.l || 1.5;
             let newX = (mx - dragOffsetX - originX) / scale;
             let newY = (my - dragOffsetY - originY) / scale;
 
-            selectedItem.x = Math.max(0, Math.min(houseW - selectedItem.w, newX));
-            selectedItem.y = Math.max(0, Math.min(houseL - selectedItem.l, newY));
+            selectedItem.x = Math.max(0, Math.min(houseW - itemW, newX));
+            selectedItem.y = Math.max(0, Math.min(houseL - itemL, newY));
 
-            statusText.innerHTML = "🚚 가구 이동 중: <b>" + selectedItem.name + "</b> [ X: " + selectedItem.x.toFixed(2) + "m, Y: " + selectedItem.y.toFixed(2) + "m ]";
+            statusText.innerHTML = "🚚 가구 이동 중: <b>" + (selectedItem.name || "가구") + "</b> [ X: " + selectedItem.x.toFixed(2) + "m, Y: " + selectedItem.y.toFixed(2) + "m ]";
             draw();
         }
     });
@@ -343,7 +365,7 @@
             e.preventDefault();
             let rotStep = e.deltaY < 0 ? 5 : -5;
             selectedItem.rot = ((selectedItem.rot || 0) + rotStep + 360) % 360;
-            statusText.innerHTML = "🔄 가구 회전: <b>" + selectedItem.name + "</b> -> " + selectedItem.rot + "°";
+            statusText.innerHTML = "🔄 가구 회전: <b>" + (selectedItem.name || "가구") + "</b> -> " + selectedItem.rot + "°";
             draw();
 
             clearTimeout(rotTimer);
@@ -353,7 +375,7 @@
         }
     }, { passive: false });
 
-    // 컴포넌트 즉시 초기화
+    // 컴포넌트 초기화
     Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
     Streamlit.setComponentReady();
     Streamlit.setFrameHeight(680);
