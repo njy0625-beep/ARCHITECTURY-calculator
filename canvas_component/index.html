@@ -34,7 +34,7 @@
     const ctx = canvas.getContext('2d');
     const statusText = document.getElementById('statusText');
 
-    const scale = 75; // 1m = 75px
+    const scale = 75;
     const originX = 60;
     const originY = 50;
 
@@ -57,12 +57,8 @@
             items = JSON.parse(JSON.stringify(args.items || []));
             draw();
         }
+        if (window.Streamlit) Streamlit.setFrameHeight(720);
     }
-
-    // 컴포넌트 프레임 높이 720px 즉시 고정
-    Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
-    Streamlit.setComponentReady();
-    Streamlit.setFrameHeight(720);
 
     function sendToStreamlit() {
         const itemStates = items.map(it => ({
@@ -80,11 +76,13 @@
             y_bath: parseFloat(walls.y_bath.toFixed(2))
         };
 
-        Streamlit.setComponentValue({
-            walls: wData,
-            items: itemStates,
-            timestamp: Date.now()
-        });
+        if (window.Streamlit) {
+            Streamlit.setComponentValue({
+                walls: wData,
+                items: itemStates,
+                timestamp: Date.now()
+            });
+        }
     }
 
     function getRooms() {
@@ -325,6 +323,20 @@
             }, 300);
         }
     }, { passive: false });
+
+    function initComponent() {
+        if (window.Streamlit) {
+            Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
+            Streamlit.setComponentReady();
+            Streamlit.setFrameHeight(720);
+        }
+    }
+
+    if (document.readyState === "complete" || document.readyState === "interactive") {
+        initComponent();
+    } else {
+        window.addEventListener("DOMContentLoaded", initComponent);
+    }
 
     draw();
 </script>
