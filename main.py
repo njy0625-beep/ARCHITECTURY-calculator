@@ -10,7 +10,7 @@ parent_dir = os.path.dirname(os.path.abspath(__file__))
 component_dir = os.path.join(parent_dir, "canvas_component")
 interactive_canvas = components.declare_component("interactive_canvas", path=component_dir)
 
-# 2. 기본 가구 및 내벽 데이터
+# 2. 기본 데이터 정의
 DEFAULT_WALLS = {
     "y_mid": 4.4,
     "x_mid1": 5.0,
@@ -31,7 +31,7 @@ DEFAULT_ITEMS = [
     {"id": "frame", "name": "벽면 액자", "type": "wall_art", "x": 2.0, "y": 0.05, "w": 1.2, "l": 0.15, "h": 0.8, "z_base": 1.40, "rot": 0.0, "color": "#F59E0B"}
 ]
 
-# 3. 세션 초기화
+# 3. 세션 데이터 세팅
 if "v3_walls" not in st.session_state:
     st.session_state["v3_walls"] = dict(DEFAULT_WALLS)
 
@@ -58,7 +58,7 @@ with top_col4:
 
 st.write(f"🏠 **전체 주택 연면적:** `{house_w * house_l:.2f} m²` (약 `{house_w * house_l / 3.3058:.1f}평`) | **벽 높이:** `{wall_h}m`")
 
-# 5. 가구 추가 & 삭제 관리 아코디언 메뉴 (사용자 요구 기능 완벽 복구!)
+# 5. 가구 추가 & 삭제 관리 메뉴
 with st.expander("➕ / 🗑️ **가구 & 소품 신규 추가 / 삭제 관리 메뉴**", expanded=True):
     tab1, tab2 = st.tabs(["➕ 가구/소품 추가하기", "🗑️ 가구/소품 삭제하기"])
     
@@ -101,7 +101,7 @@ with st.expander("➕ / 🗑️ **가구 & 소품 신규 추가 / 삭제 관리 
                 "rot": 0.0,
                 "color": new_color
             })
-            st.success(f"'{new_name}' 항목이 성공적으로 추가되었습니다!")
+            st.success(f"'{new_name}' 항목이 추가되었습니다!")
             st.rerun()
 
     with tab2:
@@ -159,7 +159,7 @@ if canvas_data and isinstance(canvas_data, dict):
                     original_it["rot"] = float(updated_it.get("rot", original_it.get("rot", 0.0)))
 
 # --------------------------------------------------------------------------
-# 6. 3D 입체 모델 시각화 (Plotly) - 2D와 1:1 완벽 좌표축 정렬
+# 6. 3D 입체 모델 시각화 (Plotly)
 # --------------------------------------------------------------------------
 st.markdown("---")
 st.subheader("🏗️ 3D 입체 건축 평면도 시각화 (실시간 반영)")
@@ -206,7 +206,7 @@ fig.add_trace(create_wall_3d(w["x_mid2"], w["y_mid"], w["x_mid2"], house_l, wall
 fig.add_trace(create_wall_3d(w["x_mid3"], w["y_mid"], w["x_mid3"], house_l, wall_h))
 fig.add_trace(create_wall_3d(w["x_mid3"], w["y_bath"], house_w, w["y_bath"], wall_h))
 
-# 3D 다층 가구/소품/카페트/액자 배치
+# 3D 가구 배치
 for item in st.session_state["v3_items"]:
     item_type = item.get("type", "furniture")
     z_pos = float(item.get("z_base", 0.05))
@@ -225,7 +225,6 @@ for item in st.session_state["v3_items"]:
         opacity=opacity_val
     ))
 
-    # 이름 표시 동기화
     if st.session_state["show_labels"]:
         fig.add_trace(go.Scatter3d(
             x=[float(item["x"]) + float(item["w"])/2],
@@ -237,7 +236,6 @@ for item in st.session_state["v3_items"]:
             showlegend=False
         ))
 
-# 2D 평면도와 상하 방향을 1:1 완벽 정렬하기 위해 range=[house_l, 0] 설정
 fig.update_layout(
     scene=dict(
         xaxis=dict(range=[0, house_w], title="가로 (m)", backgroundcolor="#F8FAFC", gridcolor="#CBD5E1"),
