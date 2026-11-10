@@ -6,26 +6,29 @@
         * { box-sizing: border-box; }
         body { font-family: 'Noto Sans KR', -apple-system, sans-serif; margin: 0; padding: 5px; background-color: #f8f9fa; user-select: none; }
         #canvas-container { width: 100%; text-align: center; background: #ffffff; border-radius: 12px; padding: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        canvas { border: 3px solid #343a40; background: #ffffff; border-radius: 8px; cursor: pointer; max-width: 100%; height: auto; display: block; margin: 0 auto; }
+        canvas { border: 3px solid #343a40; background: #ffffff; border-radius: 8px; cursor: pointer; max-width: 100%; height: auto; display: block; margin: 0 auto; outline: none; }
         .guide-banner { background: #e7f5ff; border: 1px solid #a5d8ff; padding: 8px 12px; border-radius: 6px; font-size: 13px; color: #1864ab; font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
         .status-bar { margin-top: 8px; padding: 8px 12px; background: #212529; color: #f8f9fa; border-radius: 6px; font-weight: bold; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
-        .btn-toggle { background: #4c6ef5; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
+        .btn-toggle { background: #4c6ef5; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; margin-left: 4px; }
         .btn-toggle:hover { background: #3b5bdb; }
+        .btn-delete { background: #fa5252; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; margin-left: 4px; }
+        .btn-delete:hover { background: #e03131; }
         .badge { background-color: #d4edda; color: #155724; padding: 2px 8px; border-radius: 12px; font-size: 11px; border: 1px solid #c3e6cb; }
     </style>
 </head>
 <body>
 <div id="canvas-container">
     <div class="guide-banner">
-        <div>💡 <b>내벽</b> 드래그 방크기 | <b>가구/카페트/액자/소품</b> 이동 | <b>'R'+휠</b> 회전</div>
+        <div>💡 <b>가구 선택 후 Del키 / 삭제버튼</b>으로 삭제 | <b>내벽</b> 드래그 방크기 | <b>'R'+휠</b> 회전</div>
         <div>
             <button id="toggleLabelsBtn" class="btn-toggle" onclick="toggleLabels()">🏷️ 가구 이름: ON</button>
+            <button id="deleteBtn" class="btn-delete" onclick="deleteSelectedItem()">🗑️ 선택 가구 삭제</button>
             <span class="badge" style="margin-left: 6px;">⚡ 3D 동기화</span>
         </div>
     </div>
-    <canvas id="floorCanvas" width="880" height="560"></canvas>
+    <canvas id="floorCanvas" width="880" height="560" tabindex="0"></canvas>
     <div class="status-bar">
-        <span id="statusText">🎮 마우스로 가구, 카페트, 소품, 액자를 자유롭게 이동해보세요!</span>
+        <span id="statusText">🎮 가구를 마우스로 클릭하고 [Delete] 키나 [선택 가구 삭제] 버튼을 누르면 삭제됩니다.</span>
     </div>
 </div>
 
@@ -35,7 +38,6 @@
     let walls = { y_mid: 4.4, x_mid1: 5.0, x_mid2: 3.8, x_mid3: 7.5, y_bath: 6.4 };
     let showLabels = true;
 
-    // 초기 기본 가구 데이터 세팅 (통신 지연 시에도 즉시 출력)
     let items = [
         {"id": "carpet_living", "name": "거실 카페트", "type": "carpet", "x": 0.5, "y": 0.5, "w": 3.0, "l": 2.2, "h": 0.02, "z_base": 0.02, "rot": 0.0, "color": "#CBD5E1"},
         {"id": "sofa", "name": "거실 소파", "type": "furniture", "x": 0.8, "y": 0.8, "w": 2.4, "l": 1.2, "h": 0.9, "z_base": 0.05, "rot": 0.0, "color": "#EF4444"},
@@ -80,6 +82,19 @@
         draw();
     }
 
+    function deleteSelectedItem() {
+        if (!selectedItem) {
+            alert("삭제할 가구를 2D 평면도에서 마우스로 먼저 선택해 주세요!");
+            return;
+        }
+        const delName = selectedItem.name;
+        items = items.filter(it => it !== selectedItem);
+        selectedItem = null;
+        statusText.innerHTML = "🗑️ <b>" + delName + "</b> 가구가 삭제되었습니다.";
+        draw();
+        sendToStreamlit();
+    }
+
     function sendToStreamlit() {
         const itemStates = items.map(it => ({
             id: it.id || it.name,
@@ -121,7 +136,7 @@
         houseL = args.house_l || 8.0;
         
         if (args.walls) walls = Object.assign({}, args.walls);
-        if (args.items && args.items.length > 0 && !isDragging) {
+        if (args.items && !isDragging) {
             items = JSON.parse(JSON.stringify(args.items));
         }
         if (args.show_labels !== undefined) {
@@ -131,7 +146,6 @@
         draw();
     }
 
-    // 통신 메시지 수신기 (호환성 개선)
     window.addEventListener("message", function(event) {
         if (!event.data) return;
         let data = event.data;
@@ -142,7 +156,6 @@
         }
     });
 
-    // ready & height 알림
     window.parent.postMessage({isStreamlitMessage: true, type: "streamlit:componentReady", apiVersion: 1}, "*");
     window.parent.postMessage({isStreamlitMessage: true, type: "streamlit:setFrameHeight", height: 680}, "*");
 
@@ -160,7 +173,6 @@
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // 1. 방 구역
         getRooms().forEach(r => {
             let rx = originX + r.x * scale;
             let ry = originY + r.y * scale;
@@ -174,7 +186,6 @@
             ctx.fillText(r.name, rx + 8, ry + 20);
         });
 
-        // 2. 외벽 및 내벽
         ctx.strokeStyle = "#212529";
         ctx.lineWidth = 6;
         ctx.strokeRect(originX, originY, houseW * scale, houseL * scale);
@@ -185,7 +196,6 @@
         drawWallLine("x_mid3", originX + walls.x_mid3 * scale, originY + walls.y_mid * scale, originX + walls.x_mid3 * scale, originY + houseL * scale);
         drawWallLine("y_bath", originX + walls.x_mid3 * scale, originY + walls.y_bath * scale, originX + houseW * scale, originY + houseL * scale);
 
-        // 3. 다층 가구 항목 렌더링
         const renderOrder = { "carpet": 1, "furniture": 2, "on_top": 3, "wall_art": 3 };
         let sortedItems = [...items].sort((a, b) => (renderOrder[a.type] || 2) - (renderOrder[b.type] || 2));
 
@@ -287,6 +297,7 @@
     }
 
     canvas.addEventListener('mousedown', (e) => {
+        canvas.focus();
         const pos = getMousePos(e);
         const mx = pos.x;
         const my = pos.y;
@@ -317,7 +328,7 @@
                 isDragging = true;
                 dragOffsetX = mx - ix;
                 dragOffsetY = my - iy;
-                statusText.innerHTML = "🎯 선택 항목: <b>" + item.name + "</b> (타입: " + item.type + ")";
+                statusText.innerHTML = "🎯 선택 항목: <b>" + item.name + "</b> (Del 키 또는 삭제 버튼으로 삭제 가능)";
                 draw();
                 return;
             }
@@ -325,7 +336,7 @@
 
         selectedItem = null;
         activeWall = null;
-        statusText.innerHTML = "🎮 마우스로 가구, 카페트, 소품, 액자를 자유롭게 이동해보세요!";
+        statusText.innerHTML = "🎮 마우스로 가구를 선택 후 [Delete] 키나 [선택 가구 삭제] 버튼을 누르면 삭제됩니다.";
         draw();
     });
 
@@ -370,7 +381,13 @@
         }
     });
 
-    window.addEventListener('keydown', (e) => { if (e.key === 'r' || e.key === 'R') isRPressed = true; });
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'r' || e.key === 'R') isRPressed = true;
+        if ((e.key === 'Delete' || e.key === 'Backspace') && selectedItem) {
+            e.preventDefault();
+            deleteSelectedItem();
+        }
+    });
     window.addEventListener('keyup', (e) => { if (e.key === 'r' || e.key === 'R') isRPressed = false; });
 
     canvas.addEventListener('wheel', (e) => {
@@ -383,7 +400,6 @@
         }
     }, { passive: false });
 
-    // 초판 즉시 렌더링
     draw();
 </script>
 </body>
