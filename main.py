@@ -10,7 +10,7 @@ parent_dir = os.path.dirname(os.path.abspath(__file__))
 component_dir = os.path.join(parent_dir, "canvas_component")
 interactive_canvas = components.declare_component("interactive_canvas", path=component_dir)
 
-# 2. 기본 데이터 정의
+# 2. 기본 가구 및 내벽 데이터
 DEFAULT_WALLS = {
     "y_mid": 4.4,
     "x_mid1": 5.0,
@@ -31,7 +31,7 @@ DEFAULT_ITEMS = [
     {"id": "frame", "name": "벽면 액자", "type": "wall_art", "x": 2.0, "y": 0.05, "w": 1.2, "l": 0.15, "h": 0.8, "z_base": 1.40, "rot": 0.0, "color": "#F59E0B"}
 ]
 
-# 3. 세션 데이터 세팅
+# 3. 세션 초기화
 if "v3_walls" not in st.session_state:
     st.session_state["v3_walls"] = dict(DEFAULT_WALLS)
 
@@ -113,6 +113,8 @@ with st.expander("➕ / 🗑️ **가구 & 소품 신규 추가 / 삭제 관리 
                 deleted_item = st.session_state["v3_items"].pop(target_idx)
                 st.warning(f"'{deleted_item['name']}' 항목이 삭제되었습니다.")
                 st.rerun()
+        else:
+            st.info("현재 배치된 가구가 없습니다.")
 
 st.markdown("---")
 st.subheader("🎮 2D 평면도 마우스 조작 편집기 (드래그 시 3D 모델에 실시간 반영)")
@@ -151,12 +153,17 @@ if canvas_data and isinstance(canvas_data, dict):
             st.session_state["v3_walls"][wk] = float(wv)
             
     if "items" in canvas_data and isinstance(canvas_data["items"], list):
+        # 2D 캔버스에서 삭제된 항목을 session_state에도 실시간 동기화하여 3D에서도 지움
+        returned_ids = {str(it.get("id")) for it in canvas_data["items"] if isinstance(it, dict)}
+        st.session_state["v3_items"] = [it for it in st.session_state["v3_items"] if str(it.get("id")) in returned_ids]
+
         for updated_it in canvas_data["items"]:
-            for original_it in st.session_state["v3_items"]:
-                if str(original_it["id"]) == str(updated_it.get("id")):
-                    original_it["x"] = float(updated_it.get("x", original_it["x"]))
-                    original_it["y"] = float(updated_it.get("y", original_it["y"]))
-                    original_it["rot"] = float(updated_it.get("rot", original_it.get("rot", 0.0)))
+            if isinstance(updated_it, dict):
+                for original_it in st.session_state["v3_items"]:
+                    if str(original_it["id"]) == str(updated_it.get("id")):
+                        original_it["x"] = float(updated_it.get("x", original_it["x"]))
+                        original_it["y"] = float(updated_it.get("y", original_it["y"]))
+                        original_it["rot"] = float(updated_it.get("rot", original_it.get("rot", 0.0)))
 
 # --------------------------------------------------------------------------
 # 6. 3D 입체 모델 시각화 (Plotly)
