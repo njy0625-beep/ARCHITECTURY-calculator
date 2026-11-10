@@ -30,37 +30,23 @@
 </div>
 
 <script>
-    (function() {
-        if (!window.Streamlit) {
-            window.Streamlit = {
-                setComponentReady: function() {
-                    window.parent.postMessage({isStreamlitMessage: true, type: "streamlit:componentReady", apiVersion: 1}, "*");
-                },
-                setFrameHeight: function(height) {
-                    window.parent.postMessage({isStreamlitMessage: true, type: "streamlit:setFrameHeight", height: height || document.body.scrollHeight}, "*");
-                },
-                setComponentValue: function(value) {
-                    window.parent.postMessage({isStreamlitMessage: true, type: "streamlit:setComponentValue", value: value}, "*");
-                },
-                events: {
-                    addEventListener: function(type, callback) {
-                        window.addEventListener("message", function(event) {
-                            if (event.data && event.data.isStreamlitMessage && event.data.type === type) {
-                                callback({ detail: event.data });
-                            }
-                        });
-                    }
-                },
-                RENDER_EVENT: "streamlit:render"
-            };
-        }
-    })();
-
     let houseW = 10.0;
     let houseL = 8.0;
     let walls = { y_mid: 4.4, x_mid1: 5.0, x_mid2: 3.8, x_mid3: 7.5, y_bath: 6.4 };
     let showLabels = true;
-    let items = [];
+
+    // 초기 기본 가구 데이터 세팅 (통신 지연 시에도 즉시 출력)
+    let items = [
+        {"id": "carpet_living", "name": "거실 카페트", "type": "carpet", "x": 0.5, "y": 0.5, "w": 3.0, "l": 2.2, "h": 0.02, "z_base": 0.02, "rot": 0.0, "color": "#CBD5E1"},
+        {"id": "sofa", "name": "거실 소파", "type": "furniture", "x": 0.8, "y": 0.8, "w": 2.4, "l": 1.2, "h": 0.9, "z_base": 0.05, "rot": 0.0, "color": "#EF4444"},
+        {"id": "tv", "name": "TV장", "type": "furniture", "x": 0.8, "y": 2.8, "w": 1.8, "l": 0.6, "h": 0.6, "z_base": 0.05, "rot": 0.0, "color": "#3B82F6"},
+        {"id": "bed", "name": "안방 침대", "type": "furniture", "x": 5.5, "y": 0.8, "w": 2.0, "l": 2.0, "h": 1.1, "z_base": 0.05, "rot": 0.0, "color": "#A855F7"},
+        {"id": "table", "name": "주방 식탁", "type": "furniture", "x": 4.2, "y": 4.8, "w": 1.8, "l": 1.1, "h": 0.8, "z_base": 0.05, "rot": 0.0, "color": "#F59E0B"},
+        {"id": "fridge", "name": "냉장고", "type": "furniture", "x": 7.8, "y": 4.6, "w": 1.0, "l": 1.0, "h": 1.8, "z_base": 0.05, "rot": 0.0, "color": "#10B981"},
+        {"id": "desk", "name": "작은방 책상", "type": "furniture", "x": 0.8, "y": 4.8, "w": 1.4, "l": 0.9, "h": 0.75, "z_base": 0.05, "rot": 0.0, "color": "#14B8A6"},
+        {"id": "laptop", "name": "노트북(책상위)", "type": "on_top", "x": 1.2, "y": 5.0, "w": 0.5, "l": 0.4, "h": 0.2, "z_base": 0.80, "rot": 0.0, "color": "#334155"},
+        {"id": "frame", "name": "벽면 액자", "type": "wall_art", "x": 2.0, "y": 0.05, "w": 1.2, "l": 0.15, "h": 0.8, "z_base": 1.40, "rot": 0.0, "color": "#F59E0B"}
+    ];
 
     const canvas = document.getElementById('floorCanvas');
     const ctx = canvas.getContext('2d');
@@ -78,7 +64,6 @@
     let isRPressed = false;
     let rotTimer = null;
 
-    // 브라우저 캔버스 스케일링 좌표 보정 함수 (마우스 튀는 위치 오류 완벽 해결!)
     function getMousePos(e) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -93,26 +78,6 @@
         showLabels = !showLabels;
         document.getElementById('toggleLabelsBtn').innerText = showLabels ? "🏷️ 가구 이름: ON" : "🏷️ 가구 이름: OFF";
         draw();
-    }
-
-    function onRender(event) {
-        if (window.Streamlit) Streamlit.setFrameHeight(680);
-        
-        if (event.detail && event.detail.args) {
-            const args = event.detail.args;
-            houseW = args.house_w || 10.0;
-            houseL = args.house_l || 8.0;
-            
-            if (args.walls) walls = Object.assign({}, args.walls);
-            if (args.items && !isDragging) {
-                items = JSON.parse(JSON.stringify(args.items));
-            }
-            if (args.show_labels !== undefined) {
-                showLabels = args.show_labels;
-                document.getElementById('toggleLabelsBtn').innerText = showLabels ? "🏷️ 가구 이름: ON" : "🏷️ 가구 이름: OFF";
-            }
-            draw();
-        }
     }
 
     function sendToStreamlit() {
@@ -138,15 +103,48 @@
             y_bath: parseFloat(walls.y_bath.toFixed(2))
         };
 
-        if (window.Streamlit) {
-            Streamlit.setComponentValue({
+        window.parent.postMessage({
+            isStreamlitMessage: true,
+            type: "streamlit:setComponentValue",
+            value: {
                 walls: wData,
                 items: itemStates,
                 show_labels: showLabels,
                 timestamp: Date.now()
-            });
-        }
+            }
+        }, "*");
     }
+
+    function onRenderData(args) {
+        if (!args) return;
+        houseW = args.house_w || 10.0;
+        houseL = args.house_l || 8.0;
+        
+        if (args.walls) walls = Object.assign({}, args.walls);
+        if (args.items && args.items.length > 0 && !isDragging) {
+            items = JSON.parse(JSON.stringify(args.items));
+        }
+        if (args.show_labels !== undefined) {
+            showLabels = args.show_labels;
+            document.getElementById('toggleLabelsBtn').innerText = showLabels ? "🏷️ 가구 이름: ON" : "🏷️ 가구 이름: OFF";
+        }
+        draw();
+    }
+
+    // 통신 메시지 수신기 (호환성 개선)
+    window.addEventListener("message", function(event) {
+        if (!event.data) return;
+        let data = event.data;
+        if (data.type === "streamlit:render") {
+            onRenderData(data.args);
+        } else if (data.detail && data.detail.type === "streamlit:render") {
+            onRenderData(data.detail.args);
+        }
+    });
+
+    // ready & height 알림
+    window.parent.postMessage({isStreamlitMessage: true, type: "streamlit:componentReady", apiVersion: 1}, "*");
+    window.parent.postMessage({isStreamlitMessage: true, type: "streamlit:setFrameHeight", height: 680}, "*");
 
     function getRooms() {
         return [
@@ -187,7 +185,7 @@
         drawWallLine("x_mid3", originX + walls.x_mid3 * scale, originY + walls.y_mid * scale, originX + walls.x_mid3 * scale, originY + houseL * scale);
         drawWallLine("y_bath", originX + walls.x_mid3 * scale, originY + walls.y_bath * scale, originX + houseW * scale, originY + houseL * scale);
 
-        // 3. 다층 정렬 (carpet -> furniture -> on_top/wall_art)
+        // 3. 다층 가구 항목 렌더링
         const renderOrder = { "carpet": 1, "furniture": 2, "on_top": 3, "wall_art": 3 };
         let sortedItems = [...items].sort((a, b) => (renderOrder[a.type] || 2) - (renderOrder[b.type] || 2));
 
@@ -385,9 +383,7 @@
         }
     }, { passive: false });
 
-    Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
-    Streamlit.setComponentReady();
-    Streamlit.setFrameHeight(680);
+    // 초판 즉시 렌더링
     draw();
 </script>
 </body>
